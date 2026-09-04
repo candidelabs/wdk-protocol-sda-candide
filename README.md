@@ -170,8 +170,11 @@ One forward by its id. Throws `NoSuchElementError` if unknown.
 options: { id: string } | { address: string }
 ```
 
-Re-activates a lapsed address so any balance waiting at it is forwarded on the next monitoring sweep. Returns
+Re-activates a lapsed address so any balance waiting at it is picked up by the next monitoring sweep. It is a
+reindex: no on-chain transaction is sent and no funds are moved by this call. Returns
 `{ status: 'reindexed', address, id, message }`, or `{ status: 'failed', address, message }` for an unknown address.
+On-chain self-service recovery (withdrawing from the address) is done through the
+[recovery frontend](https://forwarding-address.candidelabs.com/).
 
 ### `disableDepositAddress(id)`
 

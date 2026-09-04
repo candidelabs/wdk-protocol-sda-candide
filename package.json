@@ -9,6 +9,11 @@
     "candide",
     "forwarding-address",
     "deposit-address",
+    "tether",
+    "usdt",
+    "usdt0",
+    "stablecoin",
+    "cross-chain",
     "ethereum"
   ],
   "repository": {
@@ -31,7 +36,7 @@
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "live:address": "node --env-file-if-exists=.env scripts/live-address.mjs",
     "live:forwards": "node --env-file-if-exists=.env scripts/live-forwards.mjs",
-    "test:integration":"cross-env NODE_OPTIONS=--experimental-vm-modules node --env-file-if-exists=.env node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPattern=tests/integration"
+    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules node --env-file-if-exists=.env node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPattern=tests/integration"
   },
   "dependencies": {
     "@noble/hashes": "^1.8.0",
