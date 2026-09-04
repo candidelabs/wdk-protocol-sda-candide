@@ -288,7 +288,12 @@ export default class CandideForwardingProtocol extends SdaProtocol {
 
     const estimate = await this._rpc.call('forwarding_estimateOutput', params)
 
-    return toSdaQuote({ sourceChainId, inputToken: options.inputToken, inputAmount }, estimate)
+    const [inputDecimals, outputDecimals] = await Promise.all([
+      this._tokenDecimals(sourceChainId, options.inputToken),
+      this._tokenDecimals(destinationChainId, estimate.outputToken)
+    ])
+
+    return toSdaQuote({ sourceChainId, inputToken: options.inputToken, inputAmount, inputDecimals, outputDecimals }, estimate)
   }
 
   /**
@@ -306,7 +311,9 @@ export default class CandideForwardingProtocol extends SdaProtocol {
   }
 
   /**
-   * Looks up an existing forwarding address by its identifier (the address itself).
+   * Looks up an existing forwarding address by its identifier (the address itself). `sourceChains` lists every chain
+   * the address has been activated on and `expiry` the soonest per-chain expiry, so a past `expiry` means at least
+   * one chain needs renewing.
    *
    * @param {string} id - The forwarding address.
    * @returns {Promise<CandideDepositAddress>} The address descriptor.
@@ -328,7 +335,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
    *
    * @param {string} id - The forwarding address.
    * @returns {Promise<CandideDepositAddress>} The refreshed address descriptor.
-   * @throws {ValueError} If the id is not an address, or no API key was configured.
+   * @throws {ValueError} If the id is not an address, or no policy secret was configured.
    * @throws {NoSuchElementError} If the address has never been activated.
    * @throws {CandideForwardingError} If the API re-derived a different address, or verification is enabled and the
    *   client-side derivation disagrees.
@@ -500,6 +507,29 @@ export default class CandideForwardingProtocol extends SdaProtocol {
   }
 
   /**
+   * Looks a token's decimals up in the cached routes of the chain it lives on.
+   *
+   * @private
+   * @param {number} chainId
+   * @param {string} tokenAddress
+   * @returns {Promise<number | undefined>} The decimals, or undefined if the token is not on any route from that chain.
+   */
+  async _tokenDecimals (chainId, tokenAddress) {
+    const wanted = String(tokenAddress).toLowerCase()
+    let routes
+    try {
+      routes = await this._routes(chainId)
+    } catch {
+      return undefined
+    }
+    for (const route of routes) {
+      const token = route.tokens.find((candidate) => String(candidate.address).toLowerCase() === wanted)
+      if (token) return token.decimals
+    }
+    return undefined
+  }
+
+  /**
    * @private
    * @param {number[]} sourceChainIds
    * @param {number} destinationChainId
@@ -527,7 +557,8 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     }
 
     const destinationChainId = toChainId(options.destinationChain)
-    const sourceChainIds = [...new Set(options.sourceChains.map(toChainId))]
+    // The destination chain is always monitored too (same-chain forwarding), so it is part of the address's coverage.
+    const sourceChainIds = [...new Set([...options.sourceChains.map(toChainId), destinationChainId])]
 
     const recipient = await this._destinationAddress(options)
     const custodialWithdrawer = options.custodialWithdrawer ?? this._config.custodialWithdrawer ?? recipient
@@ -613,6 +644,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     if (limit !== Infinity && (!Number.isInteger(limit) || limit < 0)) throw new ValueError(`Invalid limit: ${options.limit}`)
 
     const transfers = []
+    if (limit === 0) return transfers
     let seen = 0
     let cursor
 
@@ -649,12 +681,11 @@ function normalizeId (id) {
 
 /**
  * @param {{ sourceChains?: Array<{ sourceChainId: number, status: string }> }} activation
- * @returns {number[]} The active source chains, or every chain with history if none is active.
+ * @returns {number[]} Every source chain the address has activation history on, active or expired. Monitoring is
+ *   tracked per source chain, so renewal must cover all of them; `expiry` tells whether any has lapsed.
  */
 function sourceChainsOf (activation) {
-  const chains = activation?.sourceChains ?? []
-  const active = chains.filter((chain) => chain.status === 'active')
-  return (active.length > 0 ? active : chains).map((chain) => chain.sourceChainId)
+  return [...new Set((activation?.sourceChains ?? []).map((chain) => chain.sourceChainId))]
 }
 
 /**

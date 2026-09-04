@@ -70,7 +70,8 @@
  * }} CandideTransfer
  */
 /**
- * Maps a route token into an SDA token. The token identifier used in SDA calls is the source-chain contract address.
+ * Maps a route token into an SDA token. The token identifier used in SDA calls is the source-chain contract address,
+ * normalized to lowercase so that filters and comparisons are case-insensitive.
  *
  * @param {CandideRouteToken} token - The route token.
  * @param {number} chainId - The source chain id.
@@ -106,17 +107,23 @@ export function toSdaRoute(route: CandideRoute): SdaRoute;
 /**
  * Whether the fees of an estimate are paid by a sponsoring policy rather than deducted from the deposit. Uses the
  * API's `sponsored` flag when present; otherwise a sponsored estimate is recognised by delivering the full input while
- * still reporting fees.
+ * still reporting fees. `outputAmount` is in the output token's decimals and the input in the input token's, so both
+ * are scaled to a common unit when the decimals are known; unknown decimals are assumed equal.
  *
  * @param {bigint} inputAmount - The deposited amount, in the input token's base unit.
  * @param {CandideEstimate} estimate - The estimate returned by the API.
+ * @param {{ inputDecimals?: number, outputDecimals?: number }} [decimals] - The token decimals, when known.
  * @returns {boolean} True if the fees are sponsored.
  */
-export function isSponsoredEstimate(inputAmount: bigint, estimate: CandideEstimate): boolean;
+export function isSponsoredEstimate(inputAmount: bigint, estimate: CandideEstimate, decimals?: {
+    inputDecimals?: number;
+    outputDecimals?: number;
+}): boolean;
 /**
  * Maps an estimate into an SDA quote.
  *
- * @param {{ sourceChainId: number, inputToken: string, inputAmount: bigint }} input - The normalized quote input.
+ * @param {{ sourceChainId: number, inputToken: string, inputAmount: bigint, inputDecimals?: number, outputDecimals?: number }} input -
+ *   The normalized quote input, with the token decimals when known.
  * @param {CandideEstimate} estimate - The estimate returned by the API.
  * @returns {CandideDepositQuote} The SDA quote.
  */
@@ -124,6 +131,8 @@ export function toSdaQuote(input: {
     sourceChainId: number;
     inputToken: string;
     inputAmount: bigint;
+    inputDecimals?: number;
+    outputDecimals?: number;
 }, estimate: CandideEstimate): CandideDepositQuote;
 /**
  * Maps a Candide forward status into an SDA transfer status. Candide only records a forward once a deposit has been

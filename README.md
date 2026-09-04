@@ -30,15 +30,20 @@ npx -y github:candidelabs/skills
 ```javascript
 import CandideForwardingProtocol from '@candidelabs/wdk-protocol-sda-candide'
 
-const sda = new CandideForwardingProtocol(account, {          // `account` is a WDK wallet account, or undefined
+// Pass a WDK wallet account as the first argument to make its address the default recipient, or `undefined`.
+const sda = new CandideForwardingProtocol(undefined, {
   apiUrl: process.env.CANDIDE_FORWARDING_API_URL,             // API URL as shown in the Candide dashboard
   policySecret: process.env.CANDIDE_FORWARDING_POLICY_SECRET, // policy secret from the dashboard, server-side only
-  custodialWithdrawer: '0x...'                                // your company's recovery wallet (recommended)
+  custodialWithdrawer: '0xYourCompanyRecoveryWallet'          // recommended, see below
 })
 
 // Create (activate) one address that accepts deposits on Ethereum, Arbitrum and Base and delivers on Arbitrum.
-// The recipient defaults to the bound account's address.
-const [deposit] = await sda.createDepositAddress({ sourceChains: [1, 42161, 8453], destinationChain: 42161 })
+// `destinationAddress` is required unless a wallet account is bound.
+const [deposit] = await sda.createDepositAddress({
+  sourceChains: [1, 42161, 8453],
+  destinationChain: 42161,
+  destinationAddress: '0xRecipientOnArbitrum'
+})
 console.log('Send funds to', deposit.address, 'active until', new Date(deposit.expiry * 1000))
 
 // Poll for deliveries.
@@ -53,8 +58,8 @@ if (deposit.expiry <= Math.floor(Date.now() / 1000)) await sda.renewDepositAddre
 
 - **Routes are per source chain**: `getSupportedRoutes` requires `sourceChain`. Only tokens listed for a route are
   forwarded; never hardcode chains or tokens.
-- **One address covers every source chain**, and the destination chain is always monitored too. Its `id` is the
-  address itself.
+- **One address covers every source chain**, and the destination chain is always included. Its `id` is the address
+  itself.
 - **Activation expires** (`expiry`, unix seconds). Deposits that arrive after expiry wait at the address until you
   call `renewDepositAddress`.
 - **Follow deposits with `getTransfers(address)`.** A transfer's `sourceTxHash` is the forwarding transaction on the
@@ -122,7 +127,8 @@ policy: when the policy sponsors fees, `sponsored` is `true`, `outputAmount` equ
 options: { sourceChains: Blockchain[], destinationChain: Blockchain, destinationAddress?: string, custodialWithdrawer?: string, salt?: string }
 ```
 
-Activates monitoring on `sourceChains` (plus the destination chain) and returns a one-element array. `salt` is a
+Activates monitoring on `sourceChains` plus the destination chain and returns a one-element array whose
+`sourceChains` and `supportedInputTokens` cover all of them. `salt` is a
 32-byte hex value for issuing several addresses to one recipient; default zero. The descriptor includes `expiry`,
 `supportedInputTokens` across the source chains, and the `custodialWithdrawer` and `salt` used.
 
@@ -133,13 +139,14 @@ network call is fetching the relayer address (cached); none with `deployParams.a
 
 ### `getDepositAddress(id): Promise<CandideDepositAddress>`
 
-Descriptor of an activated address. `sourceChains` are the currently active chains (all recorded chains if none is
-active); `expiry` is the soonest per-chain expiry. Throws `NoSuchElementError` for an unknown address.
+Descriptor of an activated address. `sourceChains` are every chain the address has been activated on; `expiry` is
+the soonest per-chain expiry, so a past value means at least one chain needs renewing. Throws `NoSuchElementError`
+for an unknown address.
 
 ### `renewDepositAddress(id): Promise<CandideDepositAddress>`
 
-Re-activates the address on its recorded source chains with the stored derivation inputs and returns the refreshed
-descriptor.
+Re-activates the address on every recorded source chain (active or expired) with the stored derivation inputs and
+returns the refreshed descriptor.
 
 ### `getTransfers(address, options?): Promise<CandideTransfer[]>`
 

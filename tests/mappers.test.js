@@ -17,8 +17,12 @@ describe('toSdaRoute', () => {
     expect(route.outputAsset).toBeUndefined()
   })
 
-  test('toSdaToken uses the source address as the token identifier', () => {
+  test('toSdaToken uses the lowercase source address as the token identifier', () => {
     expect(toSdaToken(USDT, 1).token).toBe(USDT.address)
+    const checksummed = toSdaToken({ ...USDT, address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', destinationAddress: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9' }, 1)
+    expect(checksummed.token).toBe(USDT.address)
+    expect(checksummed.address).toBe(USDT.address)
+    expect(checksummed.destinationAddress).toBe(USDT.destinationAddress)
   })
 })
 
@@ -61,6 +65,14 @@ describe('toSdaQuote', () => {
 
     expect(isSponsoredEstimate(1000000n, { ...base, sponsored: false })).toBe(false)
     expect(isSponsoredEstimate(1000000n, { ...base, outputAmount: '994005', sponsored: true })).toBe(true)
+  })
+
+  test('scales amounts by decimals before comparing', () => {
+    const estimate = { destinationChainId: 42161, outputToken: '0xout', outputTokenSymbol: 'USDT0', bridge: 'oft', outputAmount: '1000000', relayerBotFee: '10', bridgeProtocolFee: '0' }
+
+    expect(isSponsoredEstimate(10n ** 18n, estimate, { inputDecimals: 18, outputDecimals: 6 })).toBe(true)
+    expect(isSponsoredEstimate(10n ** 18n, { ...estimate, outputAmount: '999999' }, { inputDecimals: 18, outputDecimals: 6 })).toBe(false)
+    expect(isSponsoredEstimate(10n ** 18n, estimate)).toBe(false)
   })
 
   test('treats a fee-free same-chain estimate as not sponsored', () => {

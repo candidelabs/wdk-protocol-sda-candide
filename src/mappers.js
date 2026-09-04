@@ -92,20 +92,22 @@
  */
 
 /**
- * Maps a route token into an SDA token. The token identifier used in SDA calls is the source-chain contract address.
+ * Maps a route token into an SDA token. The token identifier used in SDA calls is the source-chain contract address,
+ * normalized to lowercase so that filters and comparisons are case-insensitive.
  *
  * @param {CandideRouteToken} token - The route token.
  * @param {number} chainId - The source chain id.
  * @returns {CandideSdaToken} The SDA token.
  */
 export function toSdaToken (token, chainId) {
+  const address = String(token.address).toLowerCase()
   return {
-    token: token.address,
+    token: address,
     chain: chainId,
     symbol: token.symbol,
     decimals: token.decimals,
-    address: token.address,
-    destinationAddress: token.destinationAddress,
+    address,
+    destinationAddress: typeof token.destinationAddress === 'string' ? token.destinationAddress.toLowerCase() : token.destinationAddress,
     feeBps: token.feeBps
   }
 }
@@ -149,28 +151,34 @@ export function toSdaRoute (route) {
 /**
  * Whether the fees of an estimate are paid by a sponsoring policy rather than deducted from the deposit. Uses the
  * API's `sponsored` flag when present; otherwise a sponsored estimate is recognised by delivering the full input while
- * still reporting fees.
+ * still reporting fees. `outputAmount` is in the output token's decimals and the input in the input token's, so both
+ * are scaled to a common unit when the decimals are known; unknown decimals are assumed equal.
  *
  * @param {bigint} inputAmount - The deposited amount, in the input token's base unit.
  * @param {CandideEstimate} estimate - The estimate returned by the API.
+ * @param {{ inputDecimals?: number, outputDecimals?: number }} [decimals] - The token decimals, when known.
  * @returns {boolean} True if the fees are sponsored.
  */
-export function isSponsoredEstimate (inputAmount, estimate) {
+export function isSponsoredEstimate (inputAmount, estimate, decimals = {}) {
   if (typeof estimate.sponsored === 'boolean') return estimate.sponsored
-  const outputAmount = BigInt(estimate.outputAmount)
   const fees = BigInt(estimate.relayerBotFee) + BigInt(estimate.bridgeProtocolFee)
-  return fees > 0n && outputAmount === inputAmount
+  if (fees <= 0n) return false
+  const inputDecimals = decimals.inputDecimals ?? decimals.outputDecimals ?? 0
+  const outputDecimals = decimals.outputDecimals ?? decimals.inputDecimals ?? 0
+  // Cross-multiply instead of dividing so no precision is lost: out / 10^outDec == in / 10^inDec.
+  return BigInt(estimate.outputAmount) * 10n ** BigInt(inputDecimals) === inputAmount * 10n ** BigInt(outputDecimals)
 }
 
 /**
  * Maps an estimate into an SDA quote.
  *
- * @param {{ sourceChainId: number, inputToken: string, inputAmount: bigint }} input - The normalized quote input.
+ * @param {{ sourceChainId: number, inputToken: string, inputAmount: bigint, inputDecimals?: number, outputDecimals?: number }} input -
+ *   The normalized quote input, with the token decimals when known.
  * @param {CandideEstimate} estimate - The estimate returned by the API.
  * @returns {CandideDepositQuote} The SDA quote.
  */
 export function toSdaQuote (input, estimate) {
-  const sponsored = isSponsoredEstimate(input.inputAmount, estimate)
+  const sponsored = isSponsoredEstimate(input.inputAmount, estimate, { inputDecimals: input.inputDecimals, outputDecimals: input.outputDecimals })
   return {
     inputChain: input.sourceChainId,
     inputToken: input.inputToken,

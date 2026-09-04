@@ -147,6 +147,19 @@ describe('CandideForwardingProtocol', () => {
       expect(calls[1]).toEqual(expect.objectContaining({ method: 'forwarding_getMinimumAmount', params: { sourceChainId: 1, destinationChainId: 42161, token: USDT_ETH } }))
     })
 
+    test('matches a checksummed token address returned by the API', async () => {
+      const checksummed = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
+      mockApi(baseHandlers({
+        forwarding_getRoutes: { routes: [{ sourceChainId: 1, sourceChainName: 'Ethereum', destinationChainId: 42161, destinationChainName: 'Arbitrum One', tokens: [{ address: checksummed, symbol: 'USDT', decimals: 6, destinationAddress: USDT0_ARB, feeBps: 20 }] }] },
+        forwarding_getMinimumAmount: { bridges: {} }
+      }))
+
+      const routes = await protocol.getSupportedRoutes({ sourceChain: 1, sourceToken: checksummed })
+
+      expect(routes).toHaveLength(1)
+      expect(routes[0].inputTokens[0].token).toBe(USDT_ETH)
+    })
+
     test('omits limits when no bridge reports a minimum', async () => {
       mockApi(baseHandlers({ forwarding_getMinimumAmount: { bridges: {} } }))
 
@@ -205,6 +218,34 @@ describe('CandideForwardingProtocol', () => {
       expect(quote.sponsored).toBe(true)
       expect(quote.outputAmount).toBe(100_000_000n)
       expect(quote.fees.every((fee) => fee.included === false)).toBe(true)
+    })
+
+    test('detects sponsorship across different token decimals', async () => {
+      const bsc = { address: '0x55d398326f99059ff775485246999027b3197955', symbol: 'BUSDT', decimals: 18, destinationAddress: USDT0_ARB, feeBps: 20 }
+      const calls = mockApi(baseHandlers({
+        forwarding_getRoutes: ({ sourceChainId }) => (sourceChainId === 56
+          ? { routes: [{ sourceChainId: 56, destinationChainId: 42161, tokens: [bsc] }] }
+          : sourceChainId === 1 ? ROUTES_FROM_1 : ROUTES_FROM_42161),
+        // 1 BUSDT (18 decimals) in, full 1 USDT0 (6 decimals) out, fees still reported: sponsored.
+        forwarding_estimateOutput: { destinationChainId: 42161, outputToken: USDT0_ARB, outputTokenSymbol: 'USDT0', bridge: 'oft', outputAmount: '1000000', relayerBotFee: '2000000000000000', bridgeProtocolFee: '1000000000000000' }
+      }))
+
+      const quote = await protocol.quoteDeposit({ sourceChain: 56, inputToken: bsc.address, destinationChain: 42161, inputAmount: 10n ** 18n, depositAddress: RECIPIENT })
+
+      expect(quote.sponsored).toBe(true)
+      expect(calls.filter((c) => c.method === 'forwarding_getRoutes').map((c) => c.params.sourceChainId).sort()).toEqual([42161, 56])
+    })
+
+    test('does not report sponsorship for an unsponsored cross-decimal estimate', async () => {
+      const bsc = { address: '0x55d398326f99059ff775485246999027b3197955', symbol: 'BUSDT', decimals: 18, destinationAddress: USDT0_ARB, feeBps: 20 }
+      mockApi(baseHandlers({
+        forwarding_getRoutes: ({ sourceChainId }) => (sourceChainId === 56 ? { routes: [{ sourceChainId: 56, destinationChainId: 42161, tokens: [bsc] }] } : ROUTES_FROM_42161),
+        forwarding_estimateOutput: { destinationChainId: 42161, outputToken: USDT0_ARB, outputTokenSymbol: 'USDT0', bridge: 'oft', outputAmount: '997000', relayerBotFee: '2000000000000000', bridgeProtocolFee: '1000000000000000' }
+      }))
+
+      const quote = await protocol.quoteDeposit({ sourceChain: 56, inputToken: bsc.address, destinationChain: 42161, inputAmount: 10n ** 18n })
+
+      expect(quote.sponsored).toBe(false)
     })
 
     test('rejects an invalid deposit address', async () => {
@@ -274,6 +315,16 @@ describe('CandideForwardingProtocol', () => {
         custodialWithdrawer: WITHDRAWER,
         salt: ZERO_SALT
       })
+    })
+
+    test('always includes the destination chain in the activation and the descriptor', async () => {
+      const calls = mockApi(baseHandlers({ account_activateForwardingAddress: { address, active: true, expiresAt: 1 } }))
+
+      const [result] = await protocol.createDepositAddress({ sourceChains: [1], destinationChain: 42161 })
+
+      expect(calls.find((c) => c.method === 'account_activateForwardingAddress').params.sourceChainIds).toEqual([1, 42161])
+      expect(result.sourceChains).toEqual([1, 42161])
+      expect(result.supportedInputTokens.map((t) => t.chain)).toEqual([1, 1, 42161])
     })
 
     test('uses an explicit destination address, per-call withdrawer and salt', async () => {
@@ -402,13 +453,13 @@ describe('CandideForwardingProtocol', () => {
       expect(result.supportedInputTokens).toHaveLength(3)
     })
 
-    test('falls back to every chain with history when none is active', async () => {
+    test('includes expired chains in sourceChains and reports the lapsed expiry', async () => {
       mockApi(baseHandlers({
         forwarding_getDeployParamsByAddress: STORED,
-        forwarding_getActivation: { address, sourceChains: [{ sourceChainId: 1, status: 'expired', expiredAt: 50 }] }
+        forwarding_getActivation: { address, sourceChains: [{ sourceChainId: 1, status: 'active', expiresAt: 900 }, { sourceChainId: 42161, status: 'expired', expiredAt: 50 }] }
       }))
 
-      await expect(protocol.getDepositAddress(address)).resolves.toMatchObject({ sourceChains: [1], expiry: 50 })
+      await expect(protocol.getDepositAddress(address)).resolves.toMatchObject({ sourceChains: [1, 42161], expiry: 50 })
     })
 
     test('throws NoSuchElementError for an unknown address', async () => {
@@ -443,6 +494,18 @@ describe('CandideForwardingProtocol', () => {
       const activate = calls.find((c) => c.method === 'account_activateForwardingAddress')
       expect(activate.params).toEqual({ recipient: RECIPIENT, custodialWithdrawer: WITHDRAWER, destinationChainId: 42161, sourceChainIds: [1], salt: ZERO_SALT })
       expect(result).toMatchObject({ address, expiry: 900 })
+    })
+
+    test('renews every recorded chain, including expired ones', async () => {
+      const calls = mockApi(baseHandlers({
+        forwarding_getDeployParamsByAddress: STORED,
+        forwarding_getActivation: { address, sourceChains: [{ sourceChainId: 1, status: 'active', expiresAt: 900 }, { sourceChainId: 42161, status: 'expired', expiredAt: 50 }] },
+        account_activateForwardingAddress: { address, active: true, expiresAt: 900 }
+      }))
+
+      await protocol.renewDepositAddress(address)
+
+      expect(calls.find((c) => c.method === 'account_activateForwardingAddress').params.sourceChainIds).toEqual([1, 42161])
     })
 
     test('throws NoSuchElementError when there is no activation history', async () => {
@@ -533,6 +596,13 @@ describe('CandideForwardingProtocol', () => {
       await expect(protocol.getTransfer('known')).resolves.toMatchObject({ id: 'known', status: 'refunded', providerStatus: 'failed', failureReason: 'refunded' })
       await expect(protocol.getTransfer('unknown')).rejects.toBeInstanceOf(NoSuchElementError)
       await expect(protocol.getTransfer('')).rejects.toThrow(ValueError)
+    })
+
+    test('limit 0 returns an empty list without paging', async () => {
+      const calls = mockApi(baseHandlers({ forwarding_getForwardsByRecipient: { forwards: [forward(1)], nextCursor: null } }))
+
+      await expect(protocol.getTransfersByRecipient(42161, RECIPIENT, { limit: 0 })).resolves.toEqual([])
+      expect(calls).toHaveLength(0)
     })
 
     test('rejects invalid pagination options', async () => {

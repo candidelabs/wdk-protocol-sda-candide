@@ -91,7 +91,7 @@ maybe('CandideForwardingProtocol (live)', () => {
 
     expect(result.address).toMatch(/^0x[0-9a-f]{40}$/)
     expect(result.id).toBe(result.address)
-    expect(result.sourceChains).toEqual([sourceChainId])
+    expect(result.sourceChains).toEqual([...new Set([sourceChainId, destinationChainId])])
     expect(result.destinationAddress).toBe(recipient)
     expect(result.expiry).toBeGreaterThan(Math.floor(Date.now() / 1000))
     expect(result.supportedInputTokens.length).toBeGreaterThan(0)
