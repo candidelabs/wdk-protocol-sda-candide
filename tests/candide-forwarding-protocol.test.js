@@ -5,8 +5,8 @@ import { NoSuchElementError, SdaError, UnsupportedOperationError, ValueError } f
 
 import CandideForwardingProtocol, { CandideForwardingError, CandideForwardingErrorReason, PINNED_DEPLOY_PARAMS, ZERO_SALT, computeProxyAddress } from '../index.js'
 
-const API_URL = 'https://api.example/rpc'
-const API_KEY = 'test-key'
+const API_URL = 'https://api.example/forwarder/v3/team-key'
+const POLICY_SECRET = 'policy-secret'
 const RECIPIENT = '0x1111111111111111111111111111111111111111'
 const WITHDRAWER = '0x2222222222222222222222222222222222222222'
 const RELAYER = '0x3333333333333333333333333333333333333333'
@@ -85,12 +85,21 @@ describe('CandideForwardingProtocol', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     jest.useRealTimers()
-    protocol = new CandideForwardingProtocol(account, { apiUrl: API_URL, apiKey: API_KEY, custodialWithdrawer: WITHDRAWER })
+    protocol = new CandideForwardingProtocol(account, { apiUrl: API_URL, policySecret: POLICY_SECRET, custodialWithdrawer: WITHDRAWER })
   })
 
   describe('constructor', () => {
-    test('requires an api url', () => {
+    test('requires the api url', () => {
       expect(() => new CandideForwardingProtocol(undefined, {})).toThrow(ValueError)
+      expect(() => new CandideForwardingProtocol(undefined, { apiUrl: '' })).toThrow(ValueError)
+    })
+
+    test('uses the api url verbatim', async () => {
+      mockApi(baseHandlers())
+
+      await new CandideForwardingProtocol(undefined, { apiUrl: API_URL }).getSupportedRoutes({ sourceChain: 1 })
+
+      expect(global.fetch.mock.calls[0][0]).toBe(API_URL)
     })
 
     test('validates the configured custodial withdrawer', () => {
@@ -182,8 +191,27 @@ describe('CandideForwardingProtocol', () => {
       const quote = await protocol.quoteDeposit({ sourceChain: 1, inputToken: USDT_ETH, destinationChain: 42161, inputAmount: 100_000_000n })
 
       expect(calls[0]).toEqual(expect.objectContaining({ method: 'forwarding_estimateOutput', params: { sourceChainId: 1, destinationChainId: 42161, token: USDT_ETH, amount: '100000000' } }))
-      expect(quote).toMatchObject({ inputChain: 1, inputToken: USDT_ETH, inputAmount: 100_000_000n, destinationChain: 42161, outputAsset: USDT0_ARB, outputAmount: 99_700_000n, bridge: 'oft', outputAssetSymbol: 'USDT0' })
+      expect(quote).toMatchObject({ inputChain: 1, inputToken: USDT_ETH, inputAmount: 100_000_000n, destinationChain: 42161, outputAsset: USDT0_ARB, outputAmount: 99_700_000n, bridge: 'oft', outputAssetSymbol: 'USDT0', sponsored: false })
       expect(quote.fees.map((fee) => fee.amount)).toEqual([200_000n, 100_000n])
+    })
+
+    test('passes the deposit address as proxyAddress and reports sponsorship', async () => {
+      const proxy = '0xC39BCC9CD602F756A0D2AE6124A0B50006834A5D'
+      const calls = mockApi(baseHandlers({ forwarding_estimateOutput: { ...ESTIMATE, outputAmount: '100000000' } }))
+
+      const quote = await protocol.quoteDeposit({ sourceChain: 1, inputToken: USDT_ETH, destinationChain: 42161, inputAmount: 100_000_000n, depositAddress: proxy })
+
+      expect(calls[0].params).toEqual({ sourceChainId: 1, destinationChainId: 42161, token: USDT_ETH, amount: '100000000', proxyAddress: proxy.toLowerCase() })
+      expect(quote.sponsored).toBe(true)
+      expect(quote.outputAmount).toBe(100_000_000n)
+      expect(quote.fees.every((fee) => fee.included === false)).toBe(true)
+    })
+
+    test('rejects an invalid deposit address', async () => {
+      mockApi(baseHandlers({ forwarding_estimateOutput: ESTIMATE }))
+
+      await expect(protocol.quoteDeposit({ sourceChain: 1, inputToken: USDT_ETH, destinationChain: 42161, inputAmount: 1n, depositAddress: 'nope' })).rejects.toThrow(ValueError)
+      expect(global.fetch).not.toHaveBeenCalled()
     })
 
     test('accepts a number amount and serializes it as a string', async () => {
@@ -226,7 +254,7 @@ describe('CandideForwardingProtocol', () => {
       const result = await protocol.createDepositAddress({ sourceChains: ['ethereum', 42161, '1'], destinationChain: 'arbitrum' })
 
       const activate = calls.find((c) => c.method === 'account_activateForwardingAddress')
-      expect(activate.headers.authorization).toBe(`Bearer ${API_KEY}`)
+      expect(activate.headers.authorization).toBe(`Bearer ${POLICY_SECRET}`)
       expect(activate.params).toEqual({ recipient: RECIPIENT, custodialWithdrawer: WITHDRAWER, destinationChainId: 42161, sourceChainIds: [1, 42161], salt: ZERO_SALT })
 
       expect(result).toHaveLength(1)
@@ -262,7 +290,7 @@ describe('CandideForwardingProtocol', () => {
     })
 
     test('defaults the withdrawer to the recipient when none is configured', async () => {
-      const unconfigured = new CandideForwardingProtocol(account, { apiUrl: API_URL, apiKey: API_KEY })
+      const unconfigured = new CandideForwardingProtocol(account, { apiUrl: API_URL, policySecret: POLICY_SECRET })
       const expected = derive({ custodialWithdrawer: RECIPIENT })
       const calls = mockApi(baseHandlers({ account_activateForwardingAddress: { address: expected, active: true, expiresAt: 1 } }))
 
@@ -291,7 +319,7 @@ describe('CandideForwardingProtocol', () => {
     })
 
     test('skips derivation when verification is disabled', async () => {
-      const unverified = new CandideForwardingProtocol(account, { apiUrl: API_URL, apiKey: API_KEY, verifyAddresses: false })
+      const unverified = new CandideForwardingProtocol(account, { apiUrl: API_URL, policySecret: POLICY_SECRET, verifyAddresses: false })
       const calls = mockApi(baseHandlers({ account_activateForwardingAddress: { address: '0x9999999999999999999999999999999999999999', active: true, expiresAt: 1 } }))
 
       const [result] = await unverified.createDepositAddress({ sourceChains: [1], destinationChain: 42161 })
@@ -301,17 +329,17 @@ describe('CandideForwardingProtocol', () => {
     })
 
     test('requires a destination address when no account is bound', async () => {
-      const anonymous = new CandideForwardingProtocol(undefined, { apiUrl: API_URL, apiKey: API_KEY })
+      const anonymous = new CandideForwardingProtocol(undefined, { apiUrl: API_URL, policySecret: POLICY_SECRET })
       mockApi(baseHandlers())
 
       await expect(anonymous.createDepositAddress({ sourceChains: [1], destinationChain: 42161 })).rejects.toThrow(ValueError)
     })
 
-    test('requires an api key', async () => {
+    test('requires the policy secret', async () => {
       const readOnly = new CandideForwardingProtocol(account, { apiUrl: API_URL })
       mockApi(baseHandlers())
 
-      await expect(readOnly.createDepositAddress({ sourceChains: [1], destinationChain: 42161 })).rejects.toThrow(/requires an API key/)
+      await expect(readOnly.createDepositAddress({ sourceChains: [1], destinationChain: 42161 })).rejects.toThrow(/policy secret/)
     })
 
     test.each([

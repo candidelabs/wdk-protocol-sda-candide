@@ -37,24 +37,24 @@ export default class CandideRpcClient {
      *
      * @param {Object} options - The client options.
      * @param {string} options.url - The JSON-RPC endpoint.
-     * @param {string} [options.apiKey] - The account API key, required only for `account_*` methods.
+     * @param {string} [options.policySecret] - The forwarding policy secret, required only for `account_*` methods.
      */
-    constructor({ url, apiKey }: {
+    constructor({ url, policySecret }: {
         url: string;
-        apiKey?: string;
+        policySecret?: string;
     });
     /** @private */
     private _url;
     /** @private */
-    private _apiKey;
+    private _policySecret;
     /** @private */
     private _nextId;
     /**
-     * Whether an API key was configured.
+     * Whether a policy secret was configured.
      *
-     * @returns {boolean} True if an API key is available for authenticated methods.
+     * @returns {boolean} True if a policy secret is available for authenticated methods.
      */
-    get hasApiKey(): boolean;
+    get hasPolicySecret(): boolean;
     /**
      * Performs a JSON-RPC call.
      *
@@ -63,7 +63,7 @@ export default class CandideRpcClient {
      * @param {Object} [options] - Call options.
      * @param {boolean} [options.auth] - Whether to attach the `Authorization: Bearer` header.
      * @returns {Promise<any>} The `result` field of the response.
-     * @throws {ValueError} If `auth` is requested but no API key was configured, or the API rejected the params.
+     * @throws {ValueError} If `auth` is requested but no policy secret was configured, or the API rejected the params.
      * @throws {ProviderError} If the request fails at the transport level or the API returns a provider-side error.
      */
     call(method: string, params?: any, { auth }?: {

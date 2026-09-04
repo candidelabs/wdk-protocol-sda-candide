@@ -35,6 +35,7 @@
 
 /** @typedef {import('./src/candide-forwarding-protocol.js').CandideForwardingProtocolConfig} CandideForwardingProtocolConfig */
 /** @typedef {import('./src/candide-forwarding-protocol.js').CandideCreateDepositAddressOptions} CandideCreateDepositAddressOptions */
+/** @typedef {import('./src/candide-forwarding-protocol.js').CandideDepositOptions} CandideDepositOptions */
 /** @typedef {import('./src/candide-forwarding-protocol.js').CandideDepositAddress} CandideDepositAddress */
 /** @typedef {import('./src/deploy-params.js').CandideDeployParams} CandideDeployParams */
 /** @typedef {import('./src/mappers.js').CandideRoute} CandideRoute */

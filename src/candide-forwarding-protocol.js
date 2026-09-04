@@ -45,10 +45,12 @@ import CandideRpcClient from './rpc-client.js'
 
 /**
  * @typedef {Object} CandideForwardingProtocolConfig
- * @property {string} apiUrl - The Candide Forwarding Address JSON-RPC endpoint.
- * @property {string} [apiKey] - The account API key. Required for `createDepositAddress`, `renewDepositAddress` and
- *   `recoverDepositAddress` (the only methods that call the authenticated `account_*` API); every other method works
- *   without it.
+ * @property {string} apiUrl - The Forwarding Address API URL exactly as shown in the Candide dashboard. It carries the
+ *   team API key; the SDK never parses it.
+ * @property {string} [policySecret] - The secret of the forwarding policy (dashboard, shown once at generation). Sent as
+ *   the bearer token; addresses activated with it are sponsored under that policy. Required only for
+ *   `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress`; every other method is public. Keep it
+ *   server-side.
  * @property {string} [custodialWithdrawer] - The company-controlled wallet allowed to withdraw stuck funds after a
  *   timelock, used for every address unless overridden per call. Strongly recommended: without it, funds sent from an
  *   exchange or any wallet the recipient does not control on the source chain cannot be recovered. Defaults to the
@@ -71,6 +73,14 @@ import CandideRpcClient from './rpc-client.js'
  *   custodialWithdrawer?: string,
  *   salt?: string
  * }} CandideCreateDepositAddressOptions
+ */
+
+/**
+ * Candide-specific quote options.
+ *
+ * @typedef {SdaDepositOptions & {
+ *   depositAddress?: string
+ * }} CandideDepositOptions
  */
 
 /**
@@ -134,7 +144,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     this._config = config
 
     /** @private */
-    this._rpc = new CandideRpcClient({ url: config.apiUrl, apiKey: config.apiKey })
+    this._rpc = new CandideRpcClient({ url: config.apiUrl, policySecret: config.policySecret })
     /** @private */
     this._deployParams = new DeployParamsResolver({
       rpc: this._rpc,
@@ -254,9 +264,11 @@ export default class CandideForwardingProtocol extends SdaProtocol {
 
   /**
    * Fetches a non-binding estimate of what a deposit would deliver, after the Candide relayer fee and the bridge fee.
+   * Pass `depositAddress` to quote for a specific forwarding address: when the policy that activated it sponsors
+   * fees, the estimate delivers the full input and the quote's fees are marked as not included.
    *
-   * @param {SdaDepositOptions} options - The quote options. `outputAsset` is ignored: each token is delivered as its
-   *   own equivalent on the destination chain.
+   * @param {CandideDepositOptions} options - The quote options. `outputAsset` is ignored: each token is delivered as
+   *   its own equivalent on the destination chain.
    * @returns {Promise<CandideDepositQuote>} The quote.
    * @throws {ValueError} If the options are not valid, or the amount is below the bridge minimum or above its maximum.
    * @throws {SdaError} If the route is not supported.
@@ -268,12 +280,13 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     if (!isAddress(options.inputToken)) throw new ValueError(`Invalid inputToken address: ${options.inputToken}`)
     const inputAmount = toAmount(options.inputAmount)
 
-    const estimate = await this._rpc.call('forwarding_estimateOutput', {
-      sourceChainId,
-      destinationChainId,
-      token: options.inputToken,
-      amount: inputAmount.toString()
-    })
+    const params = { sourceChainId, destinationChainId, token: options.inputToken, amount: inputAmount.toString() }
+    if (options.depositAddress !== undefined) {
+      if (!isAddress(options.depositAddress)) throw new ValueError(`Invalid depositAddress: ${options.depositAddress}`)
+      params.proxyAddress = options.depositAddress.toLowerCase()
+    }
+
+    const estimate = await this._rpc.call('forwarding_estimateOutput', params)
 
     return toSdaQuote({ sourceChainId, inputToken: options.inputToken, inputAmount }, estimate)
   }

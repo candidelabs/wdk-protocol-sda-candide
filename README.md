@@ -35,9 +35,9 @@ import CandideForwardingProtocol from '@candidelabs/wdk-protocol-sda-candide'
 
 // `account` is any WDK wallet account (its address is the default recipient) or `undefined`.
 const sda = new CandideForwardingProtocol(account, {
-  apiUrl: 'https://<candide forwarding api>',
-  apiKey: process.env.CANDIDE_FORWARDING_API_KEY, // needed to activate addresses
-  custodialWithdrawer: '0x...'                    // your company's recovery wallet (recommended)
+  apiUrl: process.env.CANDIDE_FORWARDING_API_URL,             // API URL as shown in the dashboard (carries your team API key)
+  policySecret: process.env.CANDIDE_FORWARDING_POLICY_SECRET, // forwarding policy secret (dashboard); activation only
+  custodialWithdrawer: '0x...'                                // your company's recovery wallet (recommended)
 })
 
 // 1. Discover what can be deposited from Ethereum, and where it is delivered.
@@ -70,13 +70,29 @@ new CandideForwardingProtocol(account?, config)
 
 | Option | Required | Default | Description |
 |---|---|---|---|
-| `apiUrl` | yes | | The Candide Forwarding Address JSON-RPC endpoint. |
-| `apiKey` | no | | Account API key. Only `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress` need it; everything else is public. |
+| `apiUrl` | yes | | The Forwarding Address API URL exactly as shown in the [Candide dashboard](https://dashboard.candide.dev). It carries your team API key. |
+| `policySecret` | for activation | | The forwarding policy secret from the dashboard. Required by `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress`; every other method is public. Keep it server-side. |
 | `custodialWithdrawer` | no | recipient | Company wallet allowed to withdraw stuck funds after a timelock. See below. |
 | `verifyAddresses` | no | `true` | Derive every created address client-side and compare it with the API's answer. |
 | `deployParams` | no | pinned | Overrides for the derivation inputs (`factory`, `singleton`, `proxyCreationCode`, `allowedRelayer`). |
 | `deployParamsTtlMs` | no | 10 min | Cache lifetime of the relayer address fetched from the API. |
 | `routesCacheTtlMs` | no | 10 min | Cache lifetime of `forwarding_getRoutes` results, per source chain. |
+
+### Credentials and fee sponsorship
+
+Two values come from the dashboard. The **API URL** (`apiUrl`) carries your team API key and identifies your team; copy
+it as shown. The **policy secret** (`policySecret`) is required to activate and monitor addresses and must stay on your
+server; every address activated with it belongs to that forwarding policy.
+
+Fee sponsorship is a toggle on the policy in the dashboard and needs no change in your integration. When it is on,
+forwards deliver the full deposit to the recipient and the fees are billed to the policy; when it is off, the fees are
+deducted from the deposit. To see which applies before funds move, quote with the forwarding address:
+
+```javascript
+const quote = await sda.quoteDeposit({ ...options, depositAddress: deposit.address })
+quote.sponsored              // true when the policy pays the fees
+quote.fees[0].included       // false when sponsored: the fee is not deducted from outputAmount
+```
 
 ### Choosing the custodial withdrawer
 
@@ -102,7 +118,7 @@ base unit.
 | Method | Backed by | Notes |
 |---|---|---|
 | `getSupportedRoutes({ sourceChain, destinationChain?, sourceToken? })` | `forwarding_getRoutes`, `forwarding_getMinimumAmount` | `sourceChain` is required. One route per (source, destination) pair; `outputAsset` is unset because each token is delivered as its own equivalent. With `sourceToken`, `limits.min` is the smallest bridge minimum. |
-| `quoteDeposit({ sourceChain, inputToken, destinationChain, inputAmount })` | `forwarding_estimateOutput` | Fees are itemised as the Candide relayer fee (`protocol`) and the bridge fee (`network`), both already deducted from `outputAmount`. Extra: `bridge`, `outputAssetSymbol`. |
+| `quoteDeposit({ sourceChain, inputToken, destinationChain, inputAmount, depositAddress? })` | `forwarding_estimateOutput` | Fees are itemised as the Candide relayer fee (`protocol`) and the bridge fee (`network`); `included` says whether they are deducted from `outputAmount`. With `depositAddress`, the quote reflects that address's policy sponsorship. Extra: `bridge`, `outputAssetSymbol`, `sponsored`. |
 | `createDepositAddress({ sourceChains, destinationChain, destinationAddress?, custodialWithdrawer?, salt? })` | `account_activateForwardingAddress` | Returns a one-element array. `id` is the address. The destination chain is always monitored too. |
 | `deriveDepositAddress(sameOptions)` | `forwarding_getDeployParams` (cached) | Client-side CREATE2, no activation. Fully offline when `deployParams.allowedRelayer` is configured. |
 | `getDepositAddress(id)` | `forwarding_getDeployParamsByAddress`, `forwarding_getActivation` | `expiry` is the soonest per-chain expiry. |
@@ -174,7 +190,7 @@ npm run lint
 npm run build:types      # regenerate types/ from JSDoc
 
 # live tests against the Candide API; reads .env when present
-CANDIDE_FORWARDING_API_URL=... CANDIDE_FORWARDING_API_KEY=... TEST_RECIPIENT=0x... npm run test:integration
+CANDIDE_FORWARDING_API_URL=... CANDIDE_FORWARDING_POLICY_SECRET=... TEST_RECIPIENT=0x... npm run test:integration
 ```
 
 The integration suite activates one forwarding address for `TEST_RECIPIENT` with a fixed salt, so repeated runs

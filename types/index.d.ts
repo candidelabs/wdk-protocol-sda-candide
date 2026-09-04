@@ -22,6 +22,7 @@ export type SdaRecoveryOptions = import("@tetherto/wdk-wallet/protocols").SdaRec
 export type SdaRecoveryResult = import("@tetherto/wdk-wallet/protocols").SdaRecoveryResult;
 export type CandideForwardingProtocolConfig = import("./src/candide-forwarding-protocol.js").CandideForwardingProtocolConfig;
 export type CandideCreateDepositAddressOptions = import("./src/candide-forwarding-protocol.js").CandideCreateDepositAddressOptions;
+export type CandideDepositOptions = import("./src/candide-forwarding-protocol.js").CandideDepositOptions;
 export type CandideDepositAddress = import("./src/candide-forwarding-protocol.js").CandideDepositAddress;
 export type CandideDeployParams = import("./src/deploy-params.js").CandideDeployParams;
 export type CandideRoute = import("./src/mappers.js").CandideRoute;

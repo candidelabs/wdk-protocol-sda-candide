@@ -1,10 +1,10 @@
 // Live integration test against the Candide Forwarding Address API.
 //
 // Enabled only when the environment provides:
-//   CANDIDE_FORWARDING_API_URL   the JSON-RPC endpoint
-//   CANDIDE_FORWARDING_API_KEY   an account API key (needed for activation)
-//   TEST_RECIPIENT               the recipient address used for the test forwarding address
-//   TEST_CUSTODIAL_WITHDRAWER    optional, defaults to TEST_RECIPIENT
+//   CANDIDE_FORWARDING_API_URL        the API URL from the dashboard (carries the team API key)
+//   CANDIDE_FORWARDING_POLICY_SECRET  the forwarding policy secret (needed for activation)
+//   TEST_RECIPIENT                    the recipient address used for the test forwarding address
+//   TEST_CUSTODIAL_WITHDRAWER         optional, defaults to TEST_RECIPIENT
 //
 // Run with: npm run test:integration   (loads .env automatically when present)
 import { beforeAll, describe, expect, jest, test } from '@jest/globals'
@@ -14,9 +14,9 @@ import { NoSuchElementError, UnsupportedOperationError } from '@tetherto/wdk-wal
 import CandideForwardingProtocol, { PINNED_DEPLOY_PARAMS } from '../../index.js'
 import CandideRpcClient from '../../src/rpc-client.js'
 
-const { CANDIDE_FORWARDING_API_URL: apiUrl, CANDIDE_FORWARDING_API_KEY: apiKey, TEST_RECIPIENT: recipient } = process.env
+const { CANDIDE_FORWARDING_API_URL: apiUrl, CANDIDE_FORWARDING_POLICY_SECRET: policySecret, TEST_RECIPIENT: recipient } = process.env
 const custodialWithdrawer = process.env.TEST_CUSTODIAL_WITHDRAWER || recipient
-const enabled = Boolean(apiUrl && apiKey && recipient)
+const enabled = Boolean(apiUrl && policySecret && recipient)
 
 // Fixed salt so repeated runs refresh the same address instead of creating a new one every time.
 const TEST_SALT = '0x' + 'ca'.repeat(31) + '01'
@@ -26,14 +26,14 @@ jest.setTimeout(60_000)
 const maybe = enabled ? describe : describe.skip
 
 if (!enabled) {
-  console.warn('Skipping live integration tests: set CANDIDE_FORWARDING_API_URL, CANDIDE_FORWARDING_API_KEY and TEST_RECIPIENT.')
+  console.warn('Skipping live integration tests: set CANDIDE_FORWARDING_API_URL, CANDIDE_FORWARDING_POLICY_SECRET and TEST_RECIPIENT.')
 }
 
 maybe('CandideForwardingProtocol (live)', () => {
   let protocol, rpc, route, token, sourceChainId, destinationChainId, created
 
   beforeAll(() => {
-    protocol = new CandideForwardingProtocol(undefined, { apiUrl, apiKey, custodialWithdrawer })
+    protocol = new CandideForwardingProtocol(undefined, { apiUrl, policySecret, custodialWithdrawer })
     rpc = new CandideRpcClient({ url: apiUrl })
   })
 
@@ -96,6 +96,19 @@ maybe('CandideForwardingProtocol (live)', () => {
     expect(result.expiry).toBeGreaterThan(Math.floor(Date.now() / 1000))
     expect(result.supportedInputTokens.length).toBeGreaterThan(0)
     created = result
+  })
+
+  test('quotes for the activated address, reflecting the policy sponsorship', async () => {
+    const [filtered] = await protocol.getSupportedRoutes({ sourceChain: sourceChainId, destinationChain: destinationChainId, sourceToken: token.token })
+    const floor = 100n * 10n ** BigInt(token.decimals)
+    const inputAmount = filtered.limits?.min !== undefined && filtered.limits.min > floor ? filtered.limits.min * 2n : floor
+
+    const quote = await protocol.quoteDeposit({ sourceChain: sourceChainId, inputToken: token.token, destinationChain: destinationChainId, inputAmount, depositAddress: created.address })
+
+    console.log(`quote for ${created.address}: sponsored=${quote.sponsored}, output=${quote.outputAmount}, fees=${quote.fees.map((f) => f.amount).join('+')}`)
+    expect(typeof quote.sponsored).toBe('boolean')
+    expect(quote.fees.every((fee) => fee.included === !quote.sponsored)).toBe(true)
+    if (quote.sponsored) expect(quote.outputAmount).toBe(inputAmount)
   })
 
   test('looks the address up by id', async () => {

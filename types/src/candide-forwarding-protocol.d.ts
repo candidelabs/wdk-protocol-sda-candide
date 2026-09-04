@@ -71,15 +71,17 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     createDepositAddress(options: CandideCreateDepositAddressOptions): Promise<CandideDepositAddress[]>;
     /**
      * Fetches a non-binding estimate of what a deposit would deliver, after the Candide relayer fee and the bridge fee.
+     * Pass `depositAddress` to quote for a specific forwarding address: when the policy that activated it sponsors
+     * fees, the estimate delivers the full input and the quote's fees are marked as not included.
      *
-     * @param {SdaDepositOptions} options - The quote options. `outputAsset` is ignored: each token is delivered as its
-     *   own equivalent on the destination chain.
+     * @param {CandideDepositOptions} options - The quote options. `outputAsset` is ignored: each token is delivered as
+     *   its own equivalent on the destination chain.
      * @returns {Promise<CandideDepositQuote>} The quote.
      * @throws {ValueError} If the options are not valid, or the amount is below the bridge minimum or above its maximum.
      * @throws {SdaError} If the route is not supported.
      * @throws {ProviderError} If the API call fails or no quote is currently available.
      */
-    quoteDeposit(options: SdaDepositOptions): Promise<CandideDepositQuote>;
+    quoteDeposit(options: CandideDepositOptions): Promise<CandideDepositQuote>;
     /**
      * Derives a forwarding address client-side, without activating it. Uses the factory, beacon and proxy creation code
      * pinned in this SDK and the relayer reported by the API (cached), so the only network call is the periodic relayer
@@ -224,15 +226,17 @@ export type CandideForward = import("./mappers.js").CandideForward;
 export type CandideTransfer = import("./mappers.js").CandideTransfer;
 export type CandideForwardingProtocolConfig = {
     /**
-     * - The Candide Forwarding Address JSON-RPC endpoint.
+     * - The Forwarding Address API URL exactly as shown in the Candide dashboard. It carries the
+     * team API key; the SDK never parses it.
      */
     apiUrl: string;
     /**
-     * - The account API key. Required for `createDepositAddress`, `renewDepositAddress` and
-     * `recoverDepositAddress` (the only methods that call the authenticated `account_*` API); every other method works
-     * without it.
+     * - The secret of the forwarding policy (dashboard, shown once at generation). Sent as
+     * the bearer token; addresses activated with it are sponsored under that policy. Required only for
+     * `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress`; every other method is public. Keep it
+     * server-side.
      */
-    apiKey?: string;
+    policySecret?: string;
     /**
      * - The company-controlled wallet allowed to withdraw stuck funds after a
      * timelock, used for every address unless overridden per call. Strongly recommended: without it, funds sent from an
@@ -268,6 +272,12 @@ export type CandideForwardingProtocolConfig = {
 export type CandideCreateDepositAddressOptions = SdaCreateDepositAddressOptions & {
     custodialWithdrawer?: string;
     salt?: string;
+};
+/**
+ * Candide-specific quote options.
+ */
+export type CandideDepositOptions = SdaDepositOptions & {
+    depositAddress?: string;
 };
 /**
  * A deposit address descriptor enriched with the Candide derivation inputs.

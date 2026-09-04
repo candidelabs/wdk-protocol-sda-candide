@@ -1,6 +1,6 @@
 import { describe, expect, test } from '@jest/globals'
 
-import { toSdaQuote, toSdaRoute, toSdaToken, toSdaTransfer, toSdaTransferStatus } from '../src/mappers.js'
+import { isSponsoredEstimate, toSdaQuote, toSdaRoute, toSdaToken, toSdaTransfer, toSdaTransferStatus } from '../src/mappers.js'
 
 const USDT = { address: '0xdac17f958d2ee523a2206206994597c13d831ec7', symbol: 'USDT', decimals: 6, destinationAddress: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', feeBps: 20 }
 
@@ -42,6 +42,31 @@ describe('toSdaQuote', () => {
       { type: 'protocol', amount: 5000n, token: USDT.address, chain: 1, included: true, description: 'Candide relayer fee' },
       { type: 'network', amount: 995n, token: USDT.address, chain: 1, included: true, description: 'Bridge protocol fee (oft)' }
     ])
+    expect(quote.sponsored).toBe(false)
+  })
+
+  test('marks fees as not included when the estimate is sponsored', () => {
+    const sponsoredEstimate = { destinationChainId: 42161, outputToken: '0xout', outputTokenSymbol: 'USDT0', bridge: 'oft', outputAmount: '1000000', relayerBotFee: '5000', bridgeProtocolFee: '995' }
+
+    const quote = toSdaQuote({ sourceChainId: 1, inputToken: USDT.address, inputAmount: 1000000n }, sponsoredEstimate)
+
+    expect(quote.sponsored).toBe(true)
+    expect(quote.outputAmount).toBe(1000000n)
+    expect(quote.fees.map((fee) => fee.included)).toEqual([false, false])
+    expect(quote.fees[0].description).toContain('sponsoring policy')
+  })
+
+  test('prefers an explicit sponsored flag from the API', () => {
+    const base = { destinationChainId: 42161, outputToken: '0xout', outputTokenSymbol: 'USDT0', bridge: 'oft', outputAmount: '1000000', relayerBotFee: '5000', bridgeProtocolFee: '995' }
+
+    expect(isSponsoredEstimate(1000000n, { ...base, sponsored: false })).toBe(false)
+    expect(isSponsoredEstimate(1000000n, { ...base, outputAmount: '994005', sponsored: true })).toBe(true)
+  })
+
+  test('treats a fee-free same-chain estimate as not sponsored', () => {
+    const free = { destinationChainId: 42161, outputToken: '0xout', outputTokenSymbol: 'USDC', bridge: 'same_chain', outputAmount: '1000000', relayerBotFee: '0', bridgeProtocolFee: '0' }
+
+    expect(isSponsoredEstimate(1000000n, free)).toBe(false)
   })
 })
 

@@ -16,7 +16,7 @@ describe('CandideRpcClient', () => {
 
   beforeEach(() => {
     jest.clearAllMocks()
-    client = new CandideRpcClient({ url: URL, apiKey: 'secret' })
+    client = new CandideRpcClient({ url: URL, policySecret: 'secret' })
   })
 
   test('requires a url', () => {
@@ -55,11 +55,11 @@ describe('CandideRpcClient', () => {
     expect(global.fetch.mock.calls[0][1].headers.authorization).toBe('Bearer secret')
   })
 
-  test('throws ValueError for authenticated calls without an api key', async () => {
+  test('throws ValueError for authenticated calls without a policy secret', async () => {
     global.fetch = jest.fn()
     const anonymous = new CandideRpcClient({ url: URL })
 
-    expect(anonymous.hasApiKey).toBe(false)
+    expect(anonymous.hasPolicySecret).toBe(false)
     await expect(anonymous.call('account_activateForwardingAddress', {}, { auth: true })).rejects.toThrow(ValueError)
     expect(global.fetch).not.toHaveBeenCalled()
   })

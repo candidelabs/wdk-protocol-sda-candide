@@ -3,13 +3,13 @@
 //
 //   npm run live:address
 //
-// Reads CANDIDE_FORWARDING_API_URL, CANDIDE_FORWARDING_API_KEY, TEST_RECIPIENT, TEST_CUSTODIAL_WITHDRAWER (optional)
+// Reads CANDIDE_FORWARDING_API_URL, CANDIDE_FORWARDING_POLICY_SECRET, TEST_RECIPIENT, TEST_CUSTODIAL_WITHDRAWER (optional)
 // and TEST_DESTINATION_CHAIN (optional, default 42161 / Arbitrum) from the environment (.env is loaded by npm script).
 import CandideForwardingProtocol, { CHAIN_IDS } from '../index.js'
 
-const { CANDIDE_FORWARDING_API_URL: apiUrl, CANDIDE_FORWARDING_API_KEY: apiKey, TEST_RECIPIENT: recipient } = process.env
-if (!apiUrl || !apiKey || !recipient) {
-  console.error('Set CANDIDE_FORWARDING_API_URL, CANDIDE_FORWARDING_API_KEY and TEST_RECIPIENT.')
+const { CANDIDE_FORWARDING_API_URL: apiUrl, CANDIDE_FORWARDING_POLICY_SECRET: policySecret, TEST_RECIPIENT: recipient } = process.env
+if (!apiUrl || !policySecret || !recipient) {
+  console.error('Set CANDIDE_FORWARDING_API_URL, CANDIDE_FORWARDING_POLICY_SECRET and TEST_RECIPIENT.')
   process.exit(1)
 }
 
@@ -19,7 +19,7 @@ const destinationChain = Number(process.env.TEST_DESTINATION_CHAIN ?? 42161)
 const custodialWithdrawer = process.env.TEST_CUSTODIAL_WITHDRAWER || recipient
 const chainName = (id) => Object.entries(CHAIN_IDS).find(([, v]) => v === id)?.[0] ?? String(id)
 
-const sda = new CandideForwardingProtocol(undefined, { apiUrl, apiKey, custodialWithdrawer })
+const sda = new CandideForwardingProtocol(undefined, { apiUrl, policySecret, custodialWithdrawer })
 
 // Find every source chain that has a route to the destination. The API is keyed by source chain, so probe each
 // known chain and keep the ones that answer with a matching route.

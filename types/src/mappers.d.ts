@@ -96,12 +96,23 @@ export function toSdaRoute(route: CandideRoute): SdaRoute;
  * @property {string} outputAmount - The delivered amount, in the output token's base unit.
  * @property {string} relayerBotFee - The Candide relayer fee, in the input token's base unit.
  * @property {string} bridgeProtocolFee - The bridge protocol fee, in the input token's base unit.
+ * @property {boolean} [sponsored] - Whether the fees are paid by the sponsoring policy, when the API reports it.
  */
 /**
  * An SDA quote enriched with the Candide estimate fields.
  *
- * @typedef {SdaDepositQuote & { bridge: string, outputAssetSymbol: string }} CandideDepositQuote
+ * @typedef {SdaDepositQuote & { bridge: string, outputAssetSymbol: string, sponsored: boolean }} CandideDepositQuote
  */
+/**
+ * Whether the fees of an estimate are paid by a sponsoring policy rather than deducted from the deposit. Uses the
+ * API's `sponsored` flag when present; otherwise a sponsored estimate is recognised by delivering the full input while
+ * still reporting fees.
+ *
+ * @param {bigint} inputAmount - The deposited amount, in the input token's base unit.
+ * @param {CandideEstimate} estimate - The estimate returned by the API.
+ * @returns {boolean} True if the fees are sponsored.
+ */
+export function isSponsoredEstimate(inputAmount: bigint, estimate: CandideEstimate): boolean;
 /**
  * Maps an estimate into an SDA quote.
  *
@@ -314,6 +325,10 @@ export type CandideEstimate = {
      * - The bridge protocol fee, in the input token's base unit.
      */
     bridgeProtocolFee: string;
+    /**
+     * - Whether the fees are paid by the sponsoring policy, when the API reports it.
+     */
+    sponsored?: boolean;
 };
 /**
  * An SDA quote enriched with the Candide estimate fields.
@@ -321,4 +336,5 @@ export type CandideEstimate = {
 export type CandideDepositQuote = SdaDepositQuote & {
     bridge: string;
     outputAssetSymbol: string;
+    sponsored: boolean;
 };

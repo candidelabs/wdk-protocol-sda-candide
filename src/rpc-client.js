@@ -79,28 +79,28 @@ export default class CandideRpcClient {
    *
    * @param {Object} options - The client options.
    * @param {string} options.url - The JSON-RPC endpoint.
-   * @param {string} [options.apiKey] - The account API key, required only for `account_*` methods.
+   * @param {string} [options.policySecret] - The forwarding policy secret, required only for `account_*` methods.
    */
-  constructor ({ url, apiKey }) {
+  constructor ({ url, policySecret }) {
     if (typeof url !== 'string' || url.length === 0) {
-      throw new ValueError('The Candide Forwarding Address API url is required.')
+      throw new ValueError('\'apiUrl\' is required: the Forwarding Address API URL from the Candide dashboard.')
     }
 
     /** @private */
     this._url = url
     /** @private */
-    this._apiKey = apiKey
+    this._policySecret = policySecret
     /** @private */
     this._nextId = 1
   }
 
   /**
-   * Whether an API key was configured.
+   * Whether a policy secret was configured.
    *
-   * @returns {boolean} True if an API key is available for authenticated methods.
+   * @returns {boolean} True if a policy secret is available for authenticated methods.
    */
-  get hasApiKey () {
-    return typeof this._apiKey === 'string' && this._apiKey.length > 0
+  get hasPolicySecret () {
+    return typeof this._policySecret === 'string' && this._policySecret.length > 0
   }
 
   /**
@@ -111,16 +111,16 @@ export default class CandideRpcClient {
    * @param {Object} [options] - Call options.
    * @param {boolean} [options.auth] - Whether to attach the `Authorization: Bearer` header.
    * @returns {Promise<any>} The `result` field of the response.
-   * @throws {ValueError} If `auth` is requested but no API key was configured, or the API rejected the params.
+   * @throws {ValueError} If `auth` is requested but no policy secret was configured, or the API rejected the params.
    * @throws {ProviderError} If the request fails at the transport level or the API returns a provider-side error.
    */
   async call (method, params = {}, { auth = false } = {}) {
     const headers = { 'content-type': 'application/json' }
     if (auth) {
-      if (!this.hasApiKey) {
-        throw new ValueError(`Method '${method}' requires an API key; pass 'apiKey' in the protocol configuration.`)
+      if (!this.hasPolicySecret) {
+        throw new ValueError(`Method '${method}' requires the forwarding policy secret; pass 'policySecret' in the protocol configuration.`)
       }
-      headers.authorization = `Bearer ${this._apiKey}`
+      headers.authorization = `Bearer ${this._policySecret}`
     }
 
     const body = JSON.stringify({ jsonrpc: '2.0', id: this._nextId++, method, params: [params] })
