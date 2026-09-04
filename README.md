@@ -1,66 +1,66 @@
 # @candidelabs/wdk-protocol-sda-candide
 
-[![npm version](https://img.shields.io/npm/v/@candidelabs/wdk-protocol-sda-candide.svg)](https://www.npmjs.com/package/@candidelabs/wdk-protocol-sda-candide)
-[![license](https://img.shields.io/npm/l/@candidelabs/wdk-protocol-sda-candide.svg)](./LICENSE)
-[![docs](https://img.shields.io/badge/docs-docs.candide.dev-blue)](https://docs.candide.dev/forwarding-address/overview/)
-
-> This package is in beta. The API may change between releases.
-
-A [WDK](https://docs.wdk.tether.io) Smart Deposit Address (SDA) protocol module for
-[Candide's Forwarding Address](https://docs.candide.dev/forwarding-address/overview/).
-
-A forwarding address is one deterministic address that accepts deposits on every supported EVM chain, including the
-destination chain itself, and forwards each token as its own equivalent to a recipient on a destination chain. The
-address is a self-custodial CREATE2 contract: the recipient can always withdraw from it, and a company-controlled
-custodial withdrawer can recover stuck funds after a timelock.
-
-## About WDK
-
-The Wallet Development Kit (WDK) by Tether is a modular framework for building multi-chain, non-custodial wallets.
-Protocol modules like this one plug third-party services into any WDK wallet account through a common interface.
-See [docs.wdk.tether.io](https://docs.wdk.tether.io) for the framework and the SDA interface.
-
-## Installation
+[Candide's Forwarding Address](https://docs.candide.dev/forwarding-address/overview/) as a
+[WDK](https://docs.wdk.tether.io) Smart Deposit Address protocol. A forwarding address is one deterministic address
+that accepts deposits on every supported EVM chain, including the destination chain itself, and forwards each token as
+its own equivalent to a recipient on a destination chain. The address is a self-custodial contract: the recipient can
+always withdraw from it, and an optional company-controlled custodial withdrawer can recover stuck funds after a
+timelock.
 
 ```bash
 npm install @candidelabs/wdk-protocol-sda-candide
 ```
 
-Requires Node.js 20 or later (global `fetch`). A [Bare](https://bare.pears.com) entry point is exported as well.
+Node.js 20 or later. A [Bare](https://bare.pears.com) entry point is exported as well.
+
+Building with an AI coding agent? Install the [Candide skills](https://github.com/candidelabs/skills) so it knows the
+forwarding flow and this SDK:
+
+```
+# Claude Code
+/plugin marketplace add candidelabs/skills
+/plugin install candide@candide
+
+# Codex CLI
+npx -y github:candidelabs/skills
+```
 
 ## Quick start
 
 ```javascript
 import CandideForwardingProtocol from '@candidelabs/wdk-protocol-sda-candide'
 
-// `account` is any WDK wallet account (its address is the default recipient) or `undefined`.
-const sda = new CandideForwardingProtocol(account, {
-  apiUrl: process.env.CANDIDE_FORWARDING_API_URL,             // API URL as shown in the dashboard (carries your team API key)
-  policySecret: process.env.CANDIDE_FORWARDING_POLICY_SECRET, // forwarding policy secret (dashboard); activation only
+const sda = new CandideForwardingProtocol(account, {          // `account` is a WDK wallet account, or undefined
+  apiUrl: process.env.CANDIDE_FORWARDING_API_URL,             // API URL as shown in the Candide dashboard
+  policySecret: process.env.CANDIDE_FORWARDING_POLICY_SECRET, // policy secret from the dashboard, server-side only
   custodialWithdrawer: '0x...'                                // your company's recovery wallet (recommended)
 })
 
-// 1. Discover what can be deposited from Ethereum, and where it is delivered.
-const routes = await sda.getSupportedRoutes({ sourceChain: 'ethereum' })
+// Create (activate) one address that accepts deposits on Ethereum, Arbitrum and Base and delivers on Arbitrum.
+// The recipient defaults to the bound account's address.
+const [deposit] = await sda.createDepositAddress({ sourceChains: [1, 42161, 8453], destinationChain: 42161 })
+console.log('Send funds to', deposit.address, 'active until', new Date(deposit.expiry * 1000))
 
-// 2. Optionally quote a deposit (non-binding).
-const quote = await sda.quoteDeposit({
-  sourceChain: 1,
-  inputToken: routes[0].inputTokens[0].token,
-  destinationChain: routes[0].destinationChain,
-  inputAmount: 100_000_000n // 100 USDT
-})
-
-// 3. Create (activate) the forwarding address. One address covers every source chain.
-const [deposit] = await sda.createDepositAddress({
-  sourceChains: [1, 42161, 8453],
-  destinationChain: 42161
-})
-console.log('Send funds to:', deposit.address, 'active until', new Date(deposit.expiry * 1000))
-
-// 4. Track deliveries.
+// Poll for deliveries.
 const transfers = await sda.getTransfers(deposit.address)
+for (const t of transfers) console.log(t.id, t.status, t.sourceChainId, t.destinationTxHash)
+
+// Activation expires (currently after one day). Renew before showing the address again.
+if (deposit.expiry <= Math.floor(Date.now() / 1000)) await sda.renewDepositAddress(deposit.id)
 ```
+
+## Things to know
+
+- **Routes are per source chain**: `getSupportedRoutes` requires `sourceChain`. Only tokens listed for a route are
+  forwarded; never hardcode chains or tokens.
+- **One address covers every source chain**, and the destination chain is always monitored too. Its `id` is the
+  address itself.
+- **Activation expires** (`expiry`, unix seconds). Deposits that arrive after expiry wait at the address until you
+  call `renewDepositAddress`.
+- **Follow deposits with `getTransfers(address)`.** A transfer's `sourceTxHash` is the forwarding transaction on the
+  source chain; the depositors are in `sourceAddresses`.
+- **Amounts are `bigint`s in base units; chains are numeric ids** (names like `'arbitrum'` are accepted as input).
+- **Only activation needs `policySecret`.** Everything else is public.
 
 ## Configuration
 
@@ -68,118 +68,178 @@ const transfers = await sda.getTransfers(deposit.address)
 new CandideForwardingProtocol(account?, config)
 ```
 
-| Option | Required | Default | Description |
+`account` is an `IWalletAccount` or `IWalletAccountReadOnly`; its address is the default recipient.
+
+| Option | Type | Default | Description |
 |---|---|---|---|
-| `apiUrl` | yes | | The Forwarding Address API URL exactly as shown in the [Candide dashboard](https://dashboard.candide.dev). It carries your team API key. |
-| `policySecret` | for activation | | The forwarding policy secret from the dashboard. Required by `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress`; every other method is public. Keep it server-side. |
-| `custodialWithdrawer` | no | recipient | Company wallet allowed to withdraw stuck funds after a timelock. See below. |
-| `verifyAddresses` | no | `true` | Derive every created address client-side and compare it with the API's answer. |
-| `deployParams` | no | pinned | Overrides for the derivation inputs (`factory`, `singleton`, `proxyCreationCode`, `allowedRelayer`). |
-| `deployParamsTtlMs` | no | 10 min | Cache lifetime of the relayer address fetched from the API. |
-| `routesCacheTtlMs` | no | 10 min | Cache lifetime of `forwarding_getRoutes` results, per source chain. |
+| `apiUrl` | `string` | required | The Forwarding Address API URL exactly as shown in the [Candide dashboard](https://dashboard.candide.dev). It carries the team API key; the SDK never parses it. |
+| `policySecret` | `string` | | The forwarding policy secret from the dashboard, sent as `Authorization: Bearer`. Required to activate and monitor addresses. Keep it server-side. |
+| `custodialWithdrawer` | `string` | recipient | Company wallet allowed to withdraw stuck funds after a timelock. See below. |
+| `verifyAddresses` | `boolean` | `true` | Derive every created address client-side and compare it with the API's answer. |
+| `deployParams` | `Partial<CandideDeployParams>` | pinned | Overrides for `factory`, `singleton`, `proxyCreationCode`, `allowedRelayer`. Pinning `allowedRelayer` makes derivation fully offline. |
+| `deployParamsTtlMs` | `number` | `600000` | Cache lifetime of the relayer address fetched from the API. |
+| `routesCacheTtlMs` | `number` | `600000` | Cache lifetime of `forwarding_getRoutes` results, per source chain. |
 
-### Credentials and fee sponsorship
+### Custodial withdrawer
 
-Two values come from the dashboard. The **API URL** (`apiUrl`) carries your team API key and identifies your team; copy
-it as shown. The **policy secret** (`policySecret`) is required to activate and monitor addresses and must stay on your
-server; every address activated with it belongs to that forwarding policy.
-
-Fee sponsorship is a toggle on the policy in the dashboard and needs no change in your integration. When it is on,
-forwards deliver the full deposit to the recipient and the fees are billed to the policy; when it is off, the fees are
-deducted from the deposit. To see which applies before funds move, quote with the forwarding address:
-
-```javascript
-const quote = await sda.quoteDeposit({ ...options, depositAddress: deposit.address })
-quote.sponsored              // true when the policy pays the fees
-quote.fees[0].included       // false when sponsored: the fee is not deducted from outputAmount
-```
-
-### Choosing the custodial withdrawer
-
-Every forwarding address has two parties that can take funds out of it on the source chain:
-
-- the **recipient** can withdraw immediately;
-- the **custodial withdrawer** can withdraw after a timelock, and the recipient can veto.
-
-If a user funds the address from an exchange, they have no key on the source chain and cannot withdraw themselves.
-Set `custodialWithdrawer` to a secure company wallet so you can recover stuck funds on their behalf. Leaving it unset
-makes the address fully self-custodial (withdrawer = recipient) and accepts that risk. Both values are part of the
-address derivation, so changing either produces a different address.
-
-Stuck funds can also be recovered manually through the
+Two parties can take funds out of a forwarding address on the source chain: the recipient immediately, and the
+custodial withdrawer after a timelock (the recipient can veto). A user who funded the address from an exchange has no
+key on the source chain and cannot withdraw. Set `custodialWithdrawer` to a secure company wallet to recover stuck
+funds on their behalf. Leaving it unset makes the address fully self-custodial (withdrawer = recipient). Both values
+are derivation inputs: changing either produces a different address. Stuck funds can also be recovered through the
 [recovery frontend](https://forwarding-address.candidelabs.com/).
 
 ## API
 
-`CandideForwardingProtocol` extends WDK's `SdaProtocol`. Chains are accepted as numeric ids, numeric strings or
-names (`'ethereum'`, `'arbitrum'`, ...) and are always returned as numeric ids. Amounts are `bigint`s in the token's
-base unit.
+`CandideForwardingProtocol` extends WDK's `SdaProtocol`. Types below are the WDK SDA types plus the Candide
+extensions listed in [Types](#types).
 
-| Method | Backed by | Notes |
-|---|---|---|
-| `getSupportedRoutes({ sourceChain, destinationChain?, sourceToken? })` | `forwarding_getRoutes`, `forwarding_getMinimumAmount` | `sourceChain` is required. One route per (source, destination) pair; `outputAsset` is unset because each token is delivered as its own equivalent. With `sourceToken`, `limits.min` is the smallest bridge minimum. |
-| `quoteDeposit({ sourceChain, inputToken, destinationChain, inputAmount, depositAddress? })` | `forwarding_estimateOutput` | Fees are itemised as the Candide relayer fee (`protocol`) and the bridge fee (`network`); `included` says whether they are deducted from `outputAmount`. With `depositAddress`, the quote reflects that address's policy sponsorship. Extra: `bridge`, `outputAssetSymbol`, `sponsored`. |
-| `createDepositAddress({ sourceChains, destinationChain, destinationAddress?, custodialWithdrawer?, salt? })` | `account_activateForwardingAddress` | Returns a one-element array. `id` is the address. The destination chain is always monitored too. |
-| `deriveDepositAddress(sameOptions)` | `forwarding_getDeployParams` (cached) | Client-side CREATE2, no activation. Fully offline when `deployParams.allowedRelayer` is configured. |
-| `getDepositAddress(id)` | `forwarding_getDeployParamsByAddress`, `forwarding_getActivation` | `expiry` is the soonest per-chain expiry. |
-| `renewDepositAddress(id)` | same + `account_activateForwardingAddress` | Refreshes the activation on the recorded source chains. |
-| `getTransfers(address, { status?, skip?, limit? })` | `forwarding_getForwardsByRecipient` | Forwards that went through this address, newest first. |
-| `getTransfersByRecipient(destinationChain, recipient, options?)` | `forwarding_getForwardsByRecipient` | All forwards delivered to a recipient. |
-| `getTransfer(id)` | `forwarding_getForwardById` | |
-| `recoverDepositAddress({ id } \| { address })` | `renewDepositAddress` | Re-activates a lapsed address; waiting balances are forwarded on the next sweep. |
-| `disableDepositAddress(id)` | | Unsupported: activations simply expire. |
-| `getDeployParams()` | `forwarding_getDeployParams` | Candide-specific. The derivation inputs in use. |
+### `getSupportedRoutes(options): Promise<SdaRoute[]>`
 
-Transfers carry the SDA `id` and `status` plus the Candide forward fields (`route`, `sourceChainId`, `sourceTxHash`,
-`sourceAddresses`, `destinationTxHash`, `proxyAddress`, `failureReason`, ...). `sourceTxHash` is the forwarding
-transaction on the source chain, `destinationTxHash` the delivery on the destination chain, and `sourceAddresses`
-(`[{ address, amount }]`, `address` may be `"redacted"` for dust) the addresses that funded the forward. To follow a
-deposit, list `getTransfers(address)` or `getTransfersByRecipient(...)`. Status mapping:
+```typescript
+options: { sourceChain: Blockchain, destinationChain?: Blockchain, sourceToken?: string }
+```
 
-| Candide | SDA |
+One route per (source chain, destination chain) pair, each with the accepted `inputTokens` (`token` is the
+source-chain contract address). With `sourceToken`, the route also carries `limits.min`, the smallest bridge minimum
+for that token. Throws `ValueError` without `sourceChain`.
+
+### `quoteDeposit(options): Promise<CandideDepositQuote>`
+
+```typescript
+options: { sourceChain: Blockchain, inputToken: string, destinationChain: Blockchain, inputAmount: bigint, depositAddress?: string }
+```
+
+Non-binding estimate. `outputAsset` is the destination token address, `outputAmount` its base-unit amount. `fees`
+holds the Candide relayer fee (`type: 'protocol'`) and the bridge fee (`type: 'network'`), in the input token; their
+`included` flag is `true` when deducted from `outputAmount`. With `depositAddress`, the quote reflects that address's
+policy: when the policy sponsors fees, `sponsored` is `true`, `outputAmount` equals the input and fees are
+`included: false`. Extra fields: `bridge`, `outputAssetSymbol`, `sponsored`.
+
+### `createDepositAddress(options): Promise<CandideDepositAddress[]>`
+
+```typescript
+options: { sourceChains: Blockchain[], destinationChain: Blockchain, destinationAddress?: string, custodialWithdrawer?: string, salt?: string }
+```
+
+Activates monitoring on `sourceChains` (plus the destination chain) and returns a one-element array. `salt` is a
+32-byte hex value for issuing several addresses to one recipient; default zero. The descriptor includes `expiry`,
+`supportedInputTokens` across the source chains, and the `custodialWithdrawer` and `salt` used.
+
+### `deriveDepositAddress(options): Promise<string>`
+
+Same options as `createDepositAddress`. Computes the CREATE2 address client-side without activating it. The only
+network call is fetching the relayer address (cached); none with `deployParams.allowedRelayer` configured.
+
+### `getDepositAddress(id): Promise<CandideDepositAddress>`
+
+Descriptor of an activated address. `sourceChains` are the currently active chains (all recorded chains if none is
+active); `expiry` is the soonest per-chain expiry. Throws `NoSuchElementError` for an unknown address.
+
+### `renewDepositAddress(id): Promise<CandideDepositAddress>`
+
+Re-activates the address on its recorded source chains with the stored derivation inputs and returns the refreshed
+descriptor.
+
+### `getTransfers(address, options?): Promise<CandideTransfer[]>`
+
+```typescript
+options: { status?: SdaTransferStatus, skip?: number, limit?: number }
+```
+
+Forwards that went through the address, newest first. Throws `NoSuchElementError` for an unknown address.
+
+### `getTransfersByRecipient(destinationChain, recipient, options?): Promise<CandideTransfer[]>`
+
+Every forward delivered to the recipient on that chain, across all of its forwarding addresses. Same options.
+
+### `getTransfer(id): Promise<CandideTransfer>`
+
+One forward by its id. Throws `NoSuchElementError` if unknown.
+
+### `recoverDepositAddress(options): Promise<SdaRecoveryResult>`
+
+```typescript
+options: { id: string } | { address: string }
+```
+
+Re-activates a lapsed address so any balance waiting at it is forwarded on the next monitoring sweep. Returns
+`{ status: 'reindexed', address, id, message }`, or `{ status: 'failed', address, message }` for an unknown address.
+
+### `disableDepositAddress(id)`
+
+Not supported: activations expire on their own. Throws `UnsupportedOperationError`.
+
+### `getDeployParams(): Promise<CandideDeployParams>`
+
+Candide-specific. The derivation inputs in use: pinned `factory`, `singleton` (the beacon) and `proxyCreationCode`,
+plus the `allowedRelayer` reported by the API.
+
+### Transfer status
+
+| Candide forward | `SdaTransferStatus` |
 |---|---|
 | `delivered` | `completed` |
 | `pending`, `unknown` | `processing` |
-| `failed` + `refunded` | `refunded` |
-| `failed` + `expired` | `expired` |
+| `failed` with `failureReason: 'refunded'` | `refunded` |
+| `failed` with `failureReason: 'expired'` | `expired` |
 | `failed` (other) | `failed` |
+
+The original value is kept in `providerStatus`.
 
 ### Errors
 
-API errors are mapped onto the WDK error classes; the original JSON-RPC code and message are kept in `error.cause`.
+API errors are mapped onto the WDK error classes; the JSON-RPC `code` and `message` are kept in `error.cause`.
 
-| API error | Thrown |
-|---|---|
-| invalid params, amount too small / too large | `ValueError` |
-| route not found | `SdaError` (`ROUTE_NOT_SUPPORTED`) |
-| address not found | `NoSuchElementError` |
-| unauthorized | `ProviderError` (`UNAUTHORIZED`) |
-| account disabled, address cap reached | `ProviderError` (`FORBIDDEN`) |
-| quote unavailable, internal error, transport failure | `ProviderError` (`INTERNAL_SERVER_ERROR` / `NETWORK_ERROR`) |
+| Situation | Thrown | What to do |
+|---|---|---|
+| Invalid arguments; amount below the bridge minimum or above its maximum | `ValueError` | Fix the input; use `limits.min` from `getSupportedRoutes` |
+| Route not supported | `SdaError`, `reason: 'ROUTE_NOT_SUPPORTED'` | Pick a route from `getSupportedRoutes` |
+| Unknown address or transfer | `NoSuchElementError` | The address was never activated, or the id is wrong |
+| Missing or wrong policy secret | `ValueError` (missing) / `ProviderError`, `reason: 'UNAUTHORIZED'` | Configure `policySecret` |
+| Policy disabled, address cap reached | `ProviderError`, `reason: 'FORBIDDEN'` | Check the policy in the dashboard |
+| Quote unavailable, internal error, transport failure | `ProviderError`, `reason: 'INTERNAL_SERVER_ERROR'` or `'NETWORK_ERROR'` | Retry later |
+| Server address differs from the client-side derivation | `CandideForwardingError`, `reason: 'ADDRESS_MISMATCH'` | Do not fund either address; investigate |
+| Server reports a different factory, beacon or bytecode | `CandideForwardingError`, `reason: 'DEPLOYMENT_CHANGED'` | Upgrade the SDK, or pass verified `deployParams` |
+| Method not supported by Candide | `UnsupportedOperationError` | Only `disableDepositAddress` |
 
-Two Candide-specific errors are exported as `CandideForwardingError` with a `reason`:
+### Types
 
-- `ADDRESS_MISMATCH`: the API returned an address that the client-side derivation does not reproduce. The API has
-  activated its address; do not fund either until the discrepancy is understood.
-- `DEPLOYMENT_CHANGED`: the API reports a factory, beacon or proxy bytecode different from the ones pinned in this
-  SDK release. Upgrade the SDK, or pass verified values in `deployParams`.
+Exported from the package and generated into `types/`. Each extends the corresponding WDK type by adding fields.
 
-## Derivation inputs, verification and upgrades
+```typescript
+CandideForwardingProtocolConfig    // the configuration table above
+CandideCreateDepositAddressOptions // SdaCreateDepositAddressOptions & { custodialWithdrawer?, salt? }
+CandideDepositOptions              // SdaDepositOptions & { depositAddress? }
+CandideDepositAddress              // SdaDepositAddress & { custodialWithdrawer, salt, supportedInputTokens: CandideSdaToken[] }
+CandideSdaToken                    // SdaToken & { destinationAddress, feeBps }
+CandideDepositQuote                // SdaDepositQuote & { bridge, outputAssetSymbol, sponsored }
+CandideTransfer                    // SdaTransfer & { providerStatus, route?, recipient, sourceChainId, sourceTxHash,
+                                   //   sourceAddresses?, destinationChainId?, destinationTxHash?, proxyAddress?,
+                                   //   sourceBlockTimestamp?, failureReason?, refundTxHash? }
+CandideDeployParams                // { factory, singleton, proxyCreationCode, allowedRelayer, version? }
+CandideForwardingError             // WdkError & { reason: 'ADDRESS_MISMATCH' | 'DEPLOYMENT_CHANGED' }
+```
 
-A forwarding address is `CREATE2(factory, salt, proxyCreationCode ++ (beacon, initialize(recipient, relayer,
-custodialWithdrawer, destinationChainId)))`. The inputs fall into three groups:
+`sourceAddresses` is `[{ address, amount }]`, largest first; `address` can be the literal `"redacted"` for dust
+entries. It is `null` when attribution was not possible and absent for forwards that predate it.
+
+## Derivation, verification and upgrades
+
+A forwarding address is
+`CREATE2(factory, salt, proxyCreationCode ++ (beacon, initialize(recipient, allowedRelayer, custodialWithdrawer, destinationChainId)))`.
 
 - **Chosen by you**: recipient, custodial withdrawer, destination chain, salt. These are the security model: the
   relayer can only forward funds to the recipient, it cannot withdraw.
-- **Pinned in this SDK**: factory, beacon and proxy bytecode. They decide which code runs at the address, so the SDK
-  keeps its own copy (`PINNED_DEPLOY_PARAMS`) instead of trusting the API for them. Candide upgrades the contract
-  implementation through the beacon, which does not change any address. A redeploy of the factory or beacon does,
-  and needs a new SDK release (or `deployParams` overrides).
-- **Fetched from the API**: the relayer address, cached for `deployParamsTtlMs`. It can rotate; a stale value only
-  makes derivation disagree with the API, which verification catches.
+- **Pinned in this SDK** (`PINNED_DEPLOY_PARAMS`): factory, beacon and proxy bytecode. They decide which code runs at
+  the address, so the SDK keeps its own copy instead of trusting the API. Candide upgrades the contract implementation
+  through the beacon, which does not change addresses. A redeploy of the factory or beacon does, and needs a new SDK
+  release or `deployParams` overrides; until then the SDK throws `DEPLOYMENT_CHANGED`.
+- **Fetched from the API**: the relayer address, cached for `deployParamsTtlMs`. A stale value only makes derivation
+  disagree with the API, which verification catches.
 
-With `verifyAddresses` on (the default), every `createDepositAddress` and `renewDepositAddress` derives the address
-locally and refuses to return an address the API and the SDK disagree on.
+With `verifyAddresses` on, `createDepositAddress` and `renewDepositAddress` refuse to return an address the API and
+the SDK disagree on. `computeProxyAddress` and `ZERO_SALT` are exported for callers who want to derive themselves.
 
 ## Development
 
@@ -188,18 +248,23 @@ npm install
 npm test                 # unit tests, no network
 npm run lint
 npm run build:types      # regenerate types/ from JSDoc
-
-# live tests against the Candide API; reads .env when present
-CANDIDE_FORWARDING_API_URL=... CANDIDE_FORWARDING_POLICY_SECRET=... TEST_RECIPIENT=0x... npm run test:integration
 ```
 
-The integration suite activates one forwarding address for `TEST_RECIPIENT` with a fixed salt, so repeated runs
-refresh the same address. Set `TEST_CUSTODIAL_WITHDRAWER` to use a different withdrawer.
+Live tests read `.env` (see `.env.example`): `CANDIDE_FORWARDING_API_URL`, `CANDIDE_FORWARDING_POLICY_SECRET`,
+`TEST_RECIPIENT`, optional `TEST_CUSTODIAL_WITHDRAWER`.
 
-To test real deposits end to end, `npm run live:address` activates the test address on every chain that routes to
-`TEST_DESTINATION_CHAIN` (default Arbitrum) and prints the tokens and minimums. Send a deposit, then add
-`TEST_DEPOSIT_TXS=<chainId>:<txHash>,...` to `.env`; `npm run test:integration` polls each transaction until it is
-delivered and checks the transfer lookups.
+```bash
+npm run test:integration # routes, quote, derive, activate, lookup, renew, recover, transfers
+npm run live:address     # activates the test address on every chain routing to TEST_DESTINATION_CHAIN and prints
+                         # the tokens and minimums to deposit
+npm run live:forwards    # lists the recipient's forwards
+```
+
+After sending deposits to the test address, set `TEST_DEPOSIT_TXS=<chainId>:<txHash>,...` and run
+`npm run test:integration` again: it polls each deposit until delivered and checks every transfer lookup. The suites
+reuse one address (fixed salt) so repeated runs refresh rather than create.
+
+The unit tests in `tests/` show the exact request bodies sent and responses expected for every method.
 
 ## License
 
