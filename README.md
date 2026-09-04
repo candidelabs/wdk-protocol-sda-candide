@@ -50,8 +50,10 @@ console.log('Send funds to', deposit.address, 'active until', new Date(deposit.e
 const transfers = await sda.getTransfers(deposit.address)
 for (const t of transfers) console.log(t.id, t.status, t.sourceChainId, t.destinationTxHash)
 
-// Activation expires (currently after one day). Renew before showing the address again.
-if (deposit.expiry <= Math.floor(Date.now() / 1000)) await sda.renewDepositAddress(deposit.id)
+// Monitoring is deliberately short-lived. Show `expiry` next to the address, and renew each time the
+// deposit screen is opened; renewal is idempotent and returns the fresh expiry.
+const refreshed = await sda.renewDepositAddress(deposit.id)
+console.log('Deposits accepted until', new Date(refreshed.expiry * 1000))
 ```
 
 ## Things to know
@@ -60,8 +62,9 @@ if (deposit.expiry <= Math.floor(Date.now() / 1000)) await sda.renewDepositAddre
   forwarded; never hardcode chains or tokens.
 - **One address covers every source chain**, and the destination chain is always included. Its `id` is the address
   itself.
-- **Activation expires** (`expiry`, unix seconds). Deposits that arrive after expiry wait at the address until you
-  call `renewDepositAddress`.
+- **Monitoring is intentionally short-lived** (`expiry`, unix seconds). Monitoring an address costs money and
+  is what detects deposits, so show the expiry in the UI and call `renewDepositAddress` whenever you display the
+  address. A deposit that lands after expiry stays safe at the address and is forwarded once it is renewed.
 - **Follow deposits with `getTransfers(address)`.** A transfer's `sourceTxHash` is the forwarding transaction on the
   source chain; the depositors are in `sourceAddresses`.
 - **Amounts are `bigint`s in base units; chains are numeric ids** (names like `'arbitrum'` are accepted as input).
