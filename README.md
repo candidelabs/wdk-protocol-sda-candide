@@ -33,8 +33,8 @@ import CandideForwardingProtocol from '@candidelabs/wdk-protocol-sda-candide'
 // Pass a WDK wallet account as the first argument to make its address the default recipient, or `undefined`.
 const sda = new CandideForwardingProtocol(undefined, {
   apiUrl: process.env.CANDIDE_FORWARDING_API_URL,             // API URL as shown in the Candide dashboard
-  policySecret: process.env.CANDIDE_FORWARDING_POLICY_SECRET, // policy secret from the dashboard, server-side only
-  recoveryWithdrawer: '0xYourCompanyRecoveryWallet'          // recommended, see below
+  policySecret: process.env.CANDIDE_FORWARDING_POLICY_SECRET, // optional: only needed to activate; server-side only
+  recoveryWithdrawer: '0xYourCompanyRecoveryWallet'          // optional, recommended; defaults to the recipient
 })
 
 // Create (activate) one address that accepts deposits on Ethereum, Arbitrum and Base and delivers on Arbitrum.
@@ -78,15 +78,17 @@ new CandideForwardingProtocol(account?, config)
 
 `account` is an `IWalletAccount` or `IWalletAccountReadOnly`; its address is the default recipient.
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `apiUrl` | `string` | required | The Forwarding Address API URL exactly as shown in the [Candide dashboard](https://dashboard.candide.dev). It carries the team API key; the SDK never parses it. |
-| `policySecret` | `string` | | The forwarding policy secret from the dashboard, sent as `Authorization: Bearer`. Needed only by `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress`; every other method works without it. Keep it server-side. |
-| `recoveryWithdrawer` | `string` | recipient | Default company wallet allowed to withdraw stuck funds after a timelock; can also be given per call to `createDepositAddress` and `deriveDepositAddress`. See below. |
-| `verifyAddresses` | `boolean` | `true` | Derive every created address client-side and compare it with the API's answer. |
-| `deployParams` | `Partial<CandideDeployParams>` | pinned | Overrides for `factory`, `singleton`, `proxyCreationCode`, `allowedRelayer`. Pinning `allowedRelayer` makes derivation fully offline. |
-| `deployParamsTtlMs` | `number` | `600000` | Cache lifetime of the relayer address fetched from the API. |
-| `routesCacheTtlMs` | `number` | `600000` | Cache lifetime of `forwarding_getRoutes` results, per source chain. |
+`apiUrl` is the only required option.
+
+| Option | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `apiUrl` | `string` | yes | | The Forwarding Address API URL exactly as shown in the [Candide dashboard](https://dashboard.candide.dev). It carries the team API key; the SDK never parses it. |
+| `policySecret` | `string` | only to activate | none | The forwarding policy secret from the dashboard, sent as `Authorization: Bearer`. Needed by `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress`; every other method works without it. Keep it server-side. |
+| `recoveryWithdrawer` | `string` | no | recipient | Company wallet allowed to withdraw stuck funds after a timelock. Can also be given per call to `createDepositAddress` and `deriveDepositAddress`. See below. |
+| `verifyAddresses` | `boolean` | no | `true` | Derive every created address client-side and compare it with the API's answer. |
+| `deployParams` | `Partial<CandideDeployParams>` | no | pinned | Overrides for `factory`, `singleton`, `proxyCreationCode`, `allowedRelayer`. Pinning `allowedRelayer` makes derivation fully offline. |
+| `deployParamsTtlMs` | `number` | no | `600000` | Cache lifetime of the relayer address fetched from the API. |
+| `routesCacheTtlMs` | `number` | no | `600000` | Cache lifetime of `forwarding_getRoutes` results, per source chain. |
 
 ### Client and backend instances
 
