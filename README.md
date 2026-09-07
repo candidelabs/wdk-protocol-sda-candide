@@ -1,5 +1,7 @@
 # @candidelabs/wdk-protocol-sda-candide
 
+[<img src="https://raw.githubusercontent.com/candidelabs/wdk-protocol-sda-candide/main/assets/built-with-wdk.png" alt="Built with WDK" height="32">](https://docs.wdk.tether.io)
+
 [Candide's Forwarding Address](https://docs.candide.dev/forwarding-address/overview/) as a
 [WDK](https://docs.wdk.tether.io) Smart Deposit Address protocol. A forwarding address is one deterministic address
 that accepts deposits on every supported EVM chain, including the destination chain itself, and forwards each token as
