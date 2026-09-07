@@ -150,9 +150,10 @@ options: { sourceChains: Blockchain[], destinationChain: Blockchain, destination
 ```
 
 Activates monitoring on `sourceChains` plus the destination chain and returns a one-element array whose
-`sourceChains` and `supportedInputTokens` cover all of them. `salt` is a
-32-byte hex value for issuing several addresses to one recipient; default zero. The descriptor includes `expiry`,
-`supportedInputTokens` across the source chains, and the `recoveryWithdrawer` and `salt` used.
+`sourceChains` and `supportedInputTokens` cover all of them. Store `address`; `id` is the same value and exists to
+satisfy the interface, so any id-taking method also accepts the address. `salt` is a 32-byte hex value for issuing
+several addresses to one recipient; default zero. The descriptor includes `expiry`, `supportedInputTokens` across the
+source chains, and the `recoveryWithdrawer` and `salt` used.
 
 ### `deriveDepositAddress(options): Promise<string>`
 
