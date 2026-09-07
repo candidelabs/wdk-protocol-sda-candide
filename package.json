@@ -41,7 +41,7 @@
   "dependencies": {
     "@noble/hashes": "^1.8.0",
     "@tetherto/wdk-wallet": "^1.0.0-beta.19",
-    "bare-node-runtime": "^1.4.0"
+    "bare-node-runtime": "^1.5.0"
   },
   "devDependencies": {
     "cross-env": "7.0.3",
