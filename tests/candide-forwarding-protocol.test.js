@@ -49,7 +49,7 @@ const ROUTES_FROM_42161 = {
 }
 
 function derive (overrides = {}) {
-  return computeProxyAddress({ ...DEPLOY_PARAMS, recipient: RECIPIENT, custodialWithdrawer: WITHDRAWER, destinationChainId: 42161, salt: ZERO_SALT, ...overrides })
+  return computeProxyAddress({ ...DEPLOY_PARAMS, recipient: RECIPIENT, recoveryWithdrawer: WITHDRAWER, destinationChainId: 42161, salt: ZERO_SALT, ...overrides })
 }
 
 /**
@@ -85,7 +85,7 @@ describe('CandideForwardingProtocol', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     jest.useRealTimers()
-    protocol = new CandideForwardingProtocol(account, { apiUrl: API_URL, policySecret: POLICY_SECRET, custodialWithdrawer: WITHDRAWER })
+    protocol = new CandideForwardingProtocol(account, { apiUrl: API_URL, policySecret: POLICY_SECRET, recoveryWithdrawer: WITHDRAWER })
   })
 
   describe('constructor', () => {
@@ -102,8 +102,8 @@ describe('CandideForwardingProtocol', () => {
       expect(global.fetch.mock.calls[0][0]).toBe(API_URL)
     })
 
-    test('validates the configured custodial withdrawer', () => {
-      expect(() => new CandideForwardingProtocol(undefined, { apiUrl: API_URL, custodialWithdrawer: 'nope' })).toThrow(ValueError)
+    test('validates the configured recovery withdrawer', () => {
+      expect(() => new CandideForwardingProtocol(undefined, { apiUrl: API_URL, recoveryWithdrawer: 'nope' })).toThrow(ValueError)
     })
   })
 
@@ -312,7 +312,7 @@ describe('CandideForwardingProtocol', () => {
         destinationAddress: RECIPIENT,
         reusable: true,
         expiry: 1_800_000_000,
-        custodialWithdrawer: WITHDRAWER,
+        recoveryWithdrawer: WITHDRAWER,
         salt: ZERO_SALT
       })
     })
@@ -330,19 +330,19 @@ describe('CandideForwardingProtocol', () => {
     test('uses an explicit destination address, per-call withdrawer and salt', async () => {
       const salt = '0x' + '11'.repeat(32)
       const other = '0x4444444444444444444444444444444444444444'
-      const expected = derive({ recipient: other, custodialWithdrawer: other, salt })
+      const expected = derive({ recipient: other, recoveryWithdrawer: other, salt })
       const calls = mockApi(baseHandlers({ account_activateForwardingAddress: { address: expected, active: true, expiresAt: 1 } }))
 
-      const [result] = await protocol.createDepositAddress({ sourceChains: [1], destinationChain: 42161, destinationAddress: other, custodialWithdrawer: other, salt })
+      const [result] = await protocol.createDepositAddress({ sourceChains: [1], destinationChain: 42161, destinationAddress: other, recoveryWithdrawer: other, salt })
 
       expect(calls.find((c) => c.method === 'account_activateForwardingAddress').params).toMatchObject({ recipient: other, custodialWithdrawer: other, salt })
-      expect(result).toMatchObject({ address: expected, destinationAddress: other, custodialWithdrawer: other, salt })
+      expect(result).toMatchObject({ address: expected, destinationAddress: other, recoveryWithdrawer: other, salt })
       expect(account.getAddress).not.toHaveBeenCalled()
     })
 
     test('defaults the withdrawer to the recipient when none is configured', async () => {
       const unconfigured = new CandideForwardingProtocol(account, { apiUrl: API_URL, policySecret: POLICY_SECRET })
-      const expected = derive({ custodialWithdrawer: RECIPIENT })
+      const expected = derive({ recoveryWithdrawer: RECIPIENT })
       const calls = mockApi(baseHandlers({ account_activateForwardingAddress: { address: expected, active: true, expiresAt: 1 } }))
 
       await unconfigured.createDepositAddress({ sourceChains: [1], destinationChain: 42161 })
@@ -396,7 +396,7 @@ describe('CandideForwardingProtocol', () => {
     test.each([
       ['missing source chains', { sourceChains: [] }],
       ['bad salt', { salt: '0x01' }],
-      ['bad withdrawer', { custodialWithdrawer: '0x1' }],
+      ['bad withdrawer', { recoveryWithdrawer: '0x1' }],
       ['bad destination address', { destinationAddress: 'me' }]
     ])('rejects %s', async (_, bad) => {
       mockApi(baseHandlers())
@@ -422,7 +422,7 @@ describe('CandideForwardingProtocol', () => {
     })
 
     test('is fully offline when the relayer is pinned', async () => {
-      const offline = new CandideForwardingProtocol(account, { apiUrl: API_URL, custodialWithdrawer: WITHDRAWER, deployParams: { allowedRelayer: RELAYER } })
+      const offline = new CandideForwardingProtocol(account, { apiUrl: API_URL, recoveryWithdrawer: WITHDRAWER, deployParams: { allowedRelayer: RELAYER } })
       mockApi({})
 
       await expect(offline.deriveDepositAddress({ sourceChains: [1], destinationChain: 42161 })).resolves.toBe(derive())
@@ -449,7 +449,7 @@ describe('CandideForwardingProtocol', () => {
       const result = await protocol.getDepositAddress(address.toUpperCase().replace('0X', '0x'))
 
       expect(calls.map((c) => c.method).sort()).toEqual(['forwarding_getActivation', 'forwarding_getDeployParamsByAddress', 'forwarding_getRoutes', 'forwarding_getRoutes'])
-      expect(result).toMatchObject({ address, id: address, sourceChains: [1, 42161], destinationChain: 42161, destinationAddress: RECIPIENT, reusable: true, expiry: 100, custodialWithdrawer: WITHDRAWER, salt: ZERO_SALT })
+      expect(result).toMatchObject({ address, id: address, sourceChains: [1, 42161], destinationChain: 42161, destinationAddress: RECIPIENT, reusable: true, expiry: 100, recoveryWithdrawer: WITHDRAWER, salt: ZERO_SALT })
       expect(result.supportedInputTokens).toHaveLength(3)
     })
 

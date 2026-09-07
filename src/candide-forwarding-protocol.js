@@ -51,7 +51,7 @@ import CandideRpcClient from './rpc-client.js'
  *   the bearer token; addresses activated with it are sponsored under that policy. Required only for
  *   `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress`; every other method is public. Keep it
  *   server-side.
- * @property {string} [custodialWithdrawer] - The company-controlled wallet allowed to withdraw stuck funds after a
+ * @property {string} [recoveryWithdrawer] - The company-controlled wallet allowed to withdraw stuck funds after a
  *   timelock, used for every address unless overridden per call. Strongly recommended: without it, funds sent from an
  *   exchange or any wallet the recipient does not control on the source chain cannot be recovered. Defaults to the
  *   recipient.
@@ -70,7 +70,7 @@ import CandideRpcClient from './rpc-client.js'
  * Candide-specific options for creating or deriving a deposit address.
  *
  * @typedef {SdaCreateDepositAddressOptions & {
- *   custodialWithdrawer?: string,
+ *   recoveryWithdrawer?: string,
  *   salt?: string
  * }} CandideCreateDepositAddressOptions
  */
@@ -88,7 +88,7 @@ import CandideRpcClient from './rpc-client.js'
  *
  * @typedef {SdaDepositAddress & {
  *   supportedInputTokens: CandideSdaToken[],
- *   custodialWithdrawer: string,
+ *   recoveryWithdrawer: string,
  *   salt: string
  * }} CandideDepositAddress
  */
@@ -99,7 +99,7 @@ const FORWARDS_PAGE_SIZE = 100
 /**
  * Candide's Forwarding Address as a WDK Smart Deposit Address protocol.
  *
- * One deterministic CREATE2 address per (recipient, custodial withdrawer, destination chain, salt) accepts deposits
+ * One deterministic CREATE2 address per (recipient, recovery withdrawer, destination chain, salt) accepts deposits
  * on every supported EVM source chain, including the destination chain itself, and forwards each token as its own
  * equivalent to the recipient. Addresses are reusable; monitoring is time-limited and refreshed with
  * {@link CandideForwardingProtocol#renewDepositAddress}.
@@ -131,8 +131,8 @@ export default class CandideForwardingProtocol extends SdaProtocol {
   constructor (account, config = {}) {
     super(account)
 
-    if (config.custodialWithdrawer !== undefined && !isAddress(config.custodialWithdrawer)) {
-      throw new ValueError(`Invalid custodialWithdrawer address: ${config.custodialWithdrawer}`)
+    if (config.recoveryWithdrawer !== undefined && !isAddress(config.recoveryWithdrawer)) {
+      throw new ValueError(`Invalid recoveryWithdrawer address: ${config.recoveryWithdrawer}`)
     }
 
     /**
@@ -230,7 +230,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
 
     const activation = await this._rpc.call('account_activateForwardingAddress', {
       recipient: input.recipient,
-      custodialWithdrawer: input.custodialWithdrawer,
+      custodialWithdrawer: input.recoveryWithdrawer, // the API's name for the recovery withdrawer
       destinationChainId: input.destinationChainId,
       sourceChainIds: input.sourceChainIds,
       salt: input.salt
@@ -255,7 +255,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
       destinationAddress: input.recipient,
       reusable: true,
       expiry: activation.expiresAt,
-      custodialWithdrawer: input.custodialWithdrawer,
+      recoveryWithdrawer: input.recoveryWithdrawer,
       salt: input.salt
     }]
   }
@@ -351,7 +351,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     if (sourceChainIds.length === 0) throw new NoSuchElementError(`No activation history for address ${address}`)
 
     if (this._verifyAddresses && stored.allowedRelayer !== undefined) {
-      const derived = computeProxyAddress({ ...stored, allowedRelayer: stored.allowedRelayer })
+      const derived = computeProxyAddress({ ...stored, recoveryWithdrawer: stored.custodialWithdrawer, allowedRelayer: stored.allowedRelayer })
       if (derived !== address) {
         throw new CandideForwardingError(
           `The stored derivation inputs for ${address} give ${derived} client-side. Refusing to renew.`,
@@ -548,7 +548,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
   /**
    * @private
    * @param {CandideCreateDepositAddressOptions} options
-   * @returns {Promise<{ recipient: string, custodialWithdrawer: string, destinationChainId: number, sourceChainIds: number[], salt: string }>}
+   * @returns {Promise<{ recipient: string, recoveryWithdrawer: string, destinationChainId: number, sourceChainIds: number[], salt: string }>}
    */
   async _normalizeCreateOptions (options) {
     if (!options || typeof options !== 'object') throw new ValueError('The deposit address options are required.')
@@ -561,13 +561,13 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     const sourceChainIds = [...new Set([...options.sourceChains.map(toChainId), destinationChainId])]
 
     const recipient = await this._destinationAddress(options)
-    const custodialWithdrawer = options.custodialWithdrawer ?? this._config.custodialWithdrawer ?? recipient
-    if (!isAddress(custodialWithdrawer)) throw new ValueError(`Invalid custodialWithdrawer address: ${custodialWithdrawer}`)
+    const recoveryWithdrawer = options.recoveryWithdrawer ?? this._config.recoveryWithdrawer ?? recipient
+    if (!isAddress(recoveryWithdrawer)) throw new ValueError(`Invalid recoveryWithdrawer address: ${recoveryWithdrawer}`)
 
     const salt = options.salt ?? ZERO_SALT
     if (!isBytes32(salt)) throw new ValueError(`Invalid salt, expected a 32-byte hex value: ${salt}`)
 
-    return { recipient, custodialWithdrawer, destinationChainId, sourceChainIds, salt }
+    return { recipient, recoveryWithdrawer, destinationChainId, sourceChainIds, salt }
   }
 
   /**
@@ -590,7 +590,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
 
   /**
    * @private
-   * @param {{ recipient: string, custodialWithdrawer: string, destinationChainId: number, salt: string }} input
+   * @param {{ recipient: string, recoveryWithdrawer: string, destinationChainId: number, salt: string }} input
    * @returns {Promise<string>}
    */
   async _derive (input) {
@@ -601,7 +601,8 @@ export default class CandideForwardingProtocol extends SdaProtocol {
   /**
    * @private
    * @param {string} address
-   * @param {{ recipient: string, custodialWithdrawer: string, destinationChainId: number, salt?: string }} stored
+   * @param {{ recipient: string, custodialWithdrawer: string, destinationChainId: number, salt?: string }} stored - As
+   *   returned by `forwarding_getDeployParamsByAddress` (the API calls the recovery withdrawer `custodialWithdrawer`).
    * @param {{ sourceChains: Array<{ sourceChainId: number, status: string, expiresAt?: number, expiredAt?: number }> }} activation
    * @returns {Promise<CandideDepositAddress>}
    */
@@ -622,7 +623,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
       destinationAddress: stored.recipient,
       reusable: true,
       expiry: timestamps.length > 0 ? Math.min(...timestamps) : undefined,
-      custodialWithdrawer: stored.custodialWithdrawer,
+      recoveryWithdrawer: stored.custodialWithdrawer,
       salt: stored.salt ?? ZERO_SALT
     }
   }

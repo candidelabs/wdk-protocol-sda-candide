@@ -13,7 +13,7 @@ import { beforeAll, describe, expect, jest, test } from '@jest/globals'
 import CandideForwardingProtocol from '../../index.js'
 
 const { CANDIDE_FORWARDING_API_URL: apiUrl, TEST_RECIPIENT: recipient, TEST_DEPOSIT_TXS: txs } = process.env
-const custodialWithdrawer = process.env.TEST_CUSTODIAL_WITHDRAWER || recipient
+const recoveryWithdrawer = process.env.TEST_RECOVERY_WITHDRAWER || recipient
 const destinationChain = Number(process.env.TEST_DESTINATION_CHAIN ?? 42161)
 const enabled = Boolean(apiUrl && recipient && txs)
 
@@ -43,7 +43,7 @@ maybe('CandideForwardingProtocol deposit lifecycle (live)', () => {
   let protocol, proxyAddress
 
   beforeAll(async () => {
-    protocol = new CandideForwardingProtocol(undefined, { apiUrl, custodialWithdrawer })
+    protocol = new CandideForwardingProtocol(undefined, { apiUrl, recoveryWithdrawer })
     proxyAddress = await protocol.deriveDepositAddress({ sourceChains: [destinationChain], destinationChain, destinationAddress: recipient, salt: TEST_SALT })
     console.log(`Tracking deposits through ${proxyAddress}`)
   })

@@ -10,7 +10,7 @@ import { PINNED_DEPLOY_PARAMS } from '../src/deploy-params.js'
 const VECTORS = [
   {
     recipient: '0x1111111111111111111111111111111111111111',
-    custodialWithdrawer: '0x2222222222222222222222222222222222222222',
+    recoveryWithdrawer: '0x2222222222222222222222222222222222222222',
     destinationChainId: 42161,
     salt: ZERO_SALT,
     allowedRelayer: '0x3333333333333333333333333333333333333333',
@@ -18,7 +18,7 @@ const VECTORS = [
   },
   {
     recipient: '0xAbCdEf0123456789AbCdEf0123456789AbCdEf01',
-    custodialWithdrawer: '0xAbCdEf0123456789AbCdEf0123456789AbCdEf01',
+    recoveryWithdrawer: '0xAbCdEf0123456789AbCdEf0123456789AbCdEf01',
     destinationChainId: 1,
     salt: '0x0000000000000000000000000000000000000000000000000000000000000001',
     allowedRelayer: '0x3333333333333333333333333333333333333333',
@@ -26,7 +26,7 @@ const VECTORS = [
   },
   {
     recipient: '0x000000000000000000000000000000000000dEaD',
-    custodialWithdrawer: '0x0000000000000000000000000000000000000001',
+    recoveryWithdrawer: '0x0000000000000000000000000000000000000001',
     destinationChainId: 4217,
     salt: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
     allowedRelayer: '0x9999999999999999999999999999999999999999',
@@ -34,7 +34,7 @@ const VECTORS = [
   },
   {
     recipient: '0x5555555555555555555555555555555555555555',
-    custodialWithdrawer: '0x6666666666666666666666666666666666666666',
+    recoveryWithdrawer: '0x6666666666666666666666666666666666666666',
     destinationChainId: 8453,
     salt: '0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
     allowedRelayer: '0x7777777777777777777777777777777777777777',
@@ -60,7 +60,7 @@ describe('computeProxyAddress', () => {
 
   test.each([
     ['recipient', { recipient: '0x1234' }],
-    ['custodialWithdrawer', { custodialWithdrawer: 'not-an-address' }],
+    ['recoveryWithdrawer', { recoveryWithdrawer: 'not-an-address' }],
     ['allowedRelayer', { allowedRelayer: undefined }],
     ['salt', { salt: '0x00' }],
     ['destinationChainId', { destinationChainId: 0 }],

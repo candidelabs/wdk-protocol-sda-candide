@@ -137,7 +137,8 @@ const INITIALIZE_SELECTOR = keccak256(new TextEncoder().encode('initialize(addre
  *
  * @typedef {Object} ComputeProxyAddressParams
  * @property {string} recipient - The address that receives forwarded funds on the destination chain.
- * @property {string} custodialWithdrawer - The address allowed to withdraw stuck funds after a timelock.
+ * @property {string} recoveryWithdrawer - The address allowed to withdraw stuck funds after a timelock (the contract
+ *   and the API call it `custodialWithdrawer`).
  * @property {number} destinationChainId - The destination chain id.
  * @property {string} allowedRelayer - The relayer address allowed to trigger forwarding.
  * @property {string} factory - The `ForwardingAddressFactory` address.
@@ -149,21 +150,21 @@ const INITIALIZE_SELECTOR = keccak256(new TextEncoder().encode('initialize(addre
 /**
  * Computes the deterministic CREATE2 forwarding address, client-side.
  *
- * `initData = initialize.selector ++ abi.encode(recipient, allowedRelayer, custodialWithdrawer, destinationChainId)`
+ * `initData = initialize.selector ++ abi.encode(recipient, allowedRelayer, recoveryWithdrawer, destinationChainId)`
  * `bytecode = proxyCreationCode ++ abi.encode(singleton, initData)`
  * `address = keccak256(0xff ++ factory ++ salt ++ keccak256(bytecode))[12:]`
  *
- * Note the `initialize` argument order: the relayer comes second, before the custodial withdrawer.
+ * Note the `initialize` argument order: the relayer comes second, before the recovery withdrawer.
  *
  * @param {ComputeProxyAddressParams} params - The derivation inputs.
  * @returns {string} The lowercase, 0x-prefixed forwarding address.
  * @throws {ValueError} If any input is malformed.
  */
 export function computeProxyAddress (params) {
-  const { recipient, custodialWithdrawer, destinationChainId, allowedRelayer, factory, singleton, proxyCreationCode } = params
+  const { recipient, recoveryWithdrawer, destinationChainId, allowedRelayer, factory, singleton, proxyCreationCode } = params
   const salt = params.salt ?? ZERO_SALT
 
-  for (const [name, value] of Object.entries({ recipient, custodialWithdrawer, allowedRelayer, factory, singleton })) {
+  for (const [name, value] of Object.entries({ recipient, recoveryWithdrawer, allowedRelayer, factory, singleton })) {
     if (!isAddress(value)) throw new ValueError(`Invalid ${name} address: ${String(value)}`)
   }
   if (!isBytes32(salt)) throw new ValueError(`Invalid salt, expected a 32-byte hex value: ${String(salt)}`)
@@ -175,7 +176,7 @@ export function computeProxyAddress (params) {
     INITIALIZE_SELECTOR,
     encodeAddress(recipient),
     encodeAddress(allowedRelayer),
-    encodeAddress(custodialWithdrawer),
+    encodeAddress(recoveryWithdrawer),
     encodeUint256(BigInt(destinationChainId))
   )
 

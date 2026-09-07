@@ -1,7 +1,7 @@
 /**
  * Candide's Forwarding Address as a WDK Smart Deposit Address protocol.
  *
- * One deterministic CREATE2 address per (recipient, custodial withdrawer, destination chain, salt) accepts deposits
+ * One deterministic CREATE2 address per (recipient, recovery withdrawer, destination chain, salt) accepts deposits
  * on every supported EVM source chain, including the destination chain itself, and forwards each token as its own
  * equivalent to the recipient. Addresses are reusable; monitoring is time-limited and refreshed with
  * {@link CandideForwardingProtocol#renewDepositAddress}.
@@ -183,7 +183,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     /**
      * @private
      * @param {CandideCreateDepositAddressOptions} options
-     * @returns {Promise<{ recipient: string, custodialWithdrawer: string, destinationChainId: number, sourceChainIds: number[], salt: string }>}
+     * @returns {Promise<{ recipient: string, recoveryWithdrawer: string, destinationChainId: number, sourceChainIds: number[], salt: string }>}
      */
     private _normalizeCreateOptions;
     /**
@@ -194,14 +194,15 @@ export default class CandideForwardingProtocol extends SdaProtocol {
     private _destinationAddress;
     /**
      * @private
-     * @param {{ recipient: string, custodialWithdrawer: string, destinationChainId: number, salt: string }} input
+     * @param {{ recipient: string, recoveryWithdrawer: string, destinationChainId: number, salt: string }} input
      * @returns {Promise<string>}
      */
     private _derive;
     /**
      * @private
      * @param {string} address
-     * @param {{ recipient: string, custodialWithdrawer: string, destinationChainId: number, salt?: string }} stored
+     * @param {{ recipient: string, custodialWithdrawer: string, destinationChainId: number, salt?: string }} stored - As
+     *   returned by `forwarding_getDeployParamsByAddress` (the API calls the recovery withdrawer `custodialWithdrawer`).
      * @param {{ sourceChains: Array<{ sourceChainId: number, status: string, expiresAt?: number, expiredAt?: number }> }} activation
      * @returns {Promise<CandideDepositAddress>}
      */
@@ -254,7 +255,7 @@ export type CandideForwardingProtocolConfig = {
      * exchange or any wallet the recipient does not control on the source chain cannot be recovered. Defaults to the
      * recipient.
      */
-    custodialWithdrawer?: string;
+    recoveryWithdrawer?: string;
     /**
      * - Whether `createDepositAddress` derives the address client-side and compares
      * it with the address returned by the API. Defaults to `true`.
@@ -281,7 +282,7 @@ export type CandideForwardingProtocolConfig = {
  * Candide-specific options for creating or deriving a deposit address.
  */
 export type CandideCreateDepositAddressOptions = SdaCreateDepositAddressOptions & {
-    custodialWithdrawer?: string;
+    recoveryWithdrawer?: string;
     salt?: string;
 };
 /**
@@ -295,7 +296,7 @@ export type CandideDepositOptions = SdaDepositOptions & {
  */
 export type CandideDepositAddress = SdaDepositAddress & {
     supportedInputTokens: CandideSdaToken[];
-    custodialWithdrawer: string;
+    recoveryWithdrawer: string;
     salt: string;
 };
 import { SdaProtocol } from '@tetherto/wdk-wallet/protocols';

@@ -4,7 +4,7 @@
 [WDK](https://docs.wdk.tether.io) Smart Deposit Address protocol. A forwarding address is one deterministic address
 that accepts deposits on every supported EVM chain, including the destination chain itself, and forwards each token as
 its own equivalent to a recipient on a destination chain. The address is a self-custodial contract: the recipient can
-always withdraw from it, and an optional company-controlled custodial withdrawer can recover stuck funds after a
+always withdraw from it, and an optional company-controlled recovery withdrawer can recover stuck funds after a
 timelock.
 
 ```bash
@@ -34,7 +34,7 @@ import CandideForwardingProtocol from '@candidelabs/wdk-protocol-sda-candide'
 const sda = new CandideForwardingProtocol(undefined, {
   apiUrl: process.env.CANDIDE_FORWARDING_API_URL,             // API URL as shown in the Candide dashboard
   policySecret: process.env.CANDIDE_FORWARDING_POLICY_SECRET, // policy secret from the dashboard, server-side only
-  custodialWithdrawer: '0xYourCompanyRecoveryWallet'          // recommended, see below
+  recoveryWithdrawer: '0xYourCompanyRecoveryWallet'          // recommended, see below
 })
 
 // Create (activate) one address that accepts deposits on Ethereum, Arbitrum and Base and delivers on Arbitrum.
@@ -81,18 +81,33 @@ new CandideForwardingProtocol(account?, config)
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `apiUrl` | `string` | required | The Forwarding Address API URL exactly as shown in the [Candide dashboard](https://dashboard.candide.dev). It carries the team API key; the SDK never parses it. |
-| `policySecret` | `string` | | The forwarding policy secret from the dashboard, sent as `Authorization: Bearer`. Required to activate and monitor addresses. Keep it server-side. |
-| `custodialWithdrawer` | `string` | recipient | Company wallet allowed to withdraw stuck funds after a timelock. See below. |
+| `policySecret` | `string` | | The forwarding policy secret from the dashboard, sent as `Authorization: Bearer`. Needed only by `createDepositAddress`, `renewDepositAddress` and `recoverDepositAddress`; every other method works without it. Keep it server-side. |
+| `recoveryWithdrawer` | `string` | recipient | Default company wallet allowed to withdraw stuck funds after a timelock; can also be given per call to `createDepositAddress` and `deriveDepositAddress`. See below. |
 | `verifyAddresses` | `boolean` | `true` | Derive every created address client-side and compare it with the API's answer. |
 | `deployParams` | `Partial<CandideDeployParams>` | pinned | Overrides for `factory`, `singleton`, `proxyCreationCode`, `allowedRelayer`. Pinning `allowedRelayer` makes derivation fully offline. |
 | `deployParamsTtlMs` | `number` | `600000` | Cache lifetime of the relayer address fetched from the API. |
 | `routesCacheTtlMs` | `number` | `600000` | Cache lifetime of `forwarding_getRoutes` results, per source chain. |
 
-### Custodial withdrawer
+### Client and backend instances
+
+Only activation needs the policy secret, so a wallet client can use the SDK without it and leave activation to a
+backend that holds it:
+
+```javascript
+// Client: routes, quotes, minimums, derivation, lookups and transfer history. No secret.
+const client = new CandideForwardingProtocol(account, { apiUrl })
+
+// Backend: the same, plus createDepositAddress / renewDepositAddress / recoverDepositAddress.
+const backend = new CandideForwardingProtocol(undefined, { apiUrl, policySecret, recoveryWithdrawer })
+```
+
+### Recovery withdrawer
+
+The API and the contracts call this parameter `custodialWithdrawer`; the SDK maps the name for you.
 
 Two parties can take funds out of a forwarding address on the source chain: the recipient immediately, and the
-custodial withdrawer after a timelock (the recipient can veto). A user who funded the address from an exchange has no
-key on the source chain and cannot withdraw. Set `custodialWithdrawer` to a secure company wallet to recover stuck
+recovery withdrawer after a timelock (the recipient can veto). A user who funded the address from an exchange has no
+key on the source chain and cannot withdraw. Set `recoveryWithdrawer` to a secure company wallet to recover stuck
 funds on their behalf. Leaving it unset makes the address fully self-custodial (withdrawer = recipient). Both values
 are derivation inputs: changing either produces a different address. Stuck funds can also be recovered through the
 [recovery frontend](https://forwarding-address.candidelabs.com/).
@@ -127,13 +142,13 @@ policy: when the policy sponsors fees, `sponsored` is `true`, `outputAmount` equ
 ### `createDepositAddress(options): Promise<CandideDepositAddress[]>`
 
 ```typescript
-options: { sourceChains: Blockchain[], destinationChain: Blockchain, destinationAddress?: string, custodialWithdrawer?: string, salt?: string }
+options: { sourceChains: Blockchain[], destinationChain: Blockchain, destinationAddress?: string, recoveryWithdrawer?: string, salt?: string }
 ```
 
 Activates monitoring on `sourceChains` plus the destination chain and returns a one-element array whose
 `sourceChains` and `supportedInputTokens` cover all of them. `salt` is a
 32-byte hex value for issuing several addresses to one recipient; default zero. The descriptor includes `expiry`,
-`supportedInputTokens` across the source chains, and the `custodialWithdrawer` and `salt` used.
+`supportedInputTokens` across the source chains, and the `recoveryWithdrawer` and `salt` used.
 
 ### `deriveDepositAddress(options): Promise<string>`
 
@@ -222,9 +237,9 @@ Exported from the package and generated into `types/`. Each extends the correspo
 
 ```typescript
 CandideForwardingProtocolConfig    // the configuration table above
-CandideCreateDepositAddressOptions // SdaCreateDepositAddressOptions & { custodialWithdrawer?, salt? }
+CandideCreateDepositAddressOptions // SdaCreateDepositAddressOptions & { recoveryWithdrawer?, salt? }
 CandideDepositOptions              // SdaDepositOptions & { depositAddress? }
-CandideDepositAddress              // SdaDepositAddress & { custodialWithdrawer, salt, supportedInputTokens: CandideSdaToken[] }
+CandideDepositAddress              // SdaDepositAddress & { recoveryWithdrawer, salt, supportedInputTokens: CandideSdaToken[] }
 CandideSdaToken                    // SdaToken & { destinationAddress, feeBps }
 CandideDepositQuote                // SdaDepositQuote & { bridge, outputAssetSymbol, sponsored }
 CandideTransfer                    // SdaTransfer & { providerStatus, route?, recipient, sourceChainId, sourceTxHash,
@@ -240,9 +255,9 @@ entries. It is `null` when attribution was not possible and absent for forwards 
 ## Derivation, verification and upgrades
 
 A forwarding address is
-`CREATE2(factory, salt, proxyCreationCode ++ (beacon, initialize(recipient, allowedRelayer, custodialWithdrawer, destinationChainId)))`.
+`CREATE2(factory, salt, proxyCreationCode ++ (beacon, initialize(recipient, allowedRelayer, recoveryWithdrawer, destinationChainId)))`.
 
-- **Chosen by you**: recipient, custodial withdrawer, destination chain, salt. These are the security model: the
+- **Chosen by you**: recipient, recovery withdrawer, destination chain, salt. These are the security model: the
   relayer can only forward funds to the recipient, it cannot withdraw.
 - **Pinned in this SDK** (`PINNED_DEPLOY_PARAMS`): factory, beacon and proxy bytecode. They decide which code runs at
   the address, so the SDK keeps its own copy instead of trusting the API. Candide upgrades the contract implementation
@@ -264,7 +279,7 @@ npm run build:types      # regenerate types/ from JSDoc
 ```
 
 Live tests read `.env` (see `.env.example`): `CANDIDE_FORWARDING_API_URL`, `CANDIDE_FORWARDING_POLICY_SECRET`,
-`TEST_RECIPIENT`, optional `TEST_CUSTODIAL_WITHDRAWER`.
+`TEST_RECIPIENT`, optional `TEST_RECOVERY_WITHDRAWER`.
 
 ```bash
 npm run test:integration # routes, quote, derive, activate, lookup, renew, recover, transfers

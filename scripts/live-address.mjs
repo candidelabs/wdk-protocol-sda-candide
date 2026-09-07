@@ -3,7 +3,7 @@
 //
 //   npm run live:address
 //
-// Reads CANDIDE_FORWARDING_API_URL, CANDIDE_FORWARDING_POLICY_SECRET, TEST_RECIPIENT, TEST_CUSTODIAL_WITHDRAWER (optional)
+// Reads CANDIDE_FORWARDING_API_URL, CANDIDE_FORWARDING_POLICY_SECRET, TEST_RECIPIENT, TEST_RECOVERY_WITHDRAWER (optional)
 // and TEST_DESTINATION_CHAIN (optional, default 42161 / Arbitrum) from the environment (.env is loaded by npm script).
 import CandideForwardingProtocol, { CHAIN_IDS } from '../index.js'
 
@@ -16,10 +16,10 @@ if (!apiUrl || !policySecret || !recipient) {
 // Same salt as tests/integration/live.test.js so both suites share one address.
 const TEST_SALT = '0x' + 'ca'.repeat(31) + '01'
 const destinationChain = Number(process.env.TEST_DESTINATION_CHAIN ?? 42161)
-const custodialWithdrawer = process.env.TEST_CUSTODIAL_WITHDRAWER || recipient
+const recoveryWithdrawer = process.env.TEST_RECOVERY_WITHDRAWER || recipient
 const chainName = (id) => Object.entries(CHAIN_IDS).find(([, v]) => v === id)?.[0] ?? String(id)
 
-const sda = new CandideForwardingProtocol(undefined, { apiUrl, policySecret, custodialWithdrawer })
+const sda = new CandideForwardingProtocol(undefined, { apiUrl, policySecret, recoveryWithdrawer })
 
 // Find every source chain that has a route to the destination. The API is keyed by source chain, so probe each
 // known chain and keep the ones that answer with a matching route.
@@ -39,7 +39,7 @@ const [deposit] = await sda.createDepositAddress({ sourceChains, destinationChai
 
 console.log(`\nForwarding address : ${deposit.address}`)
 console.log(`Recipient          : ${deposit.destinationAddress}`)
-console.log(`Custodial withdrawer: ${deposit.custodialWithdrawer}`)
+console.log(`Recovery withdrawer: ${deposit.recoveryWithdrawer}`)
 console.log(`Destination chain  : ${destinationChain} (${chainName(destinationChain)})`)
 console.log(`Active until       : ${new Date(deposit.expiry * 1000).toISOString()}`)
 console.log(`Monitored on       : ${deposit.sourceChains.map((c) => `${c} (${chainName(c)})`).join(', ')}\n`)

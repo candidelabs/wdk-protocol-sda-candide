@@ -32,7 +32,8 @@ export function bytesToHex(bytes: Uint8Array): string;
  *
  * @typedef {Object} ComputeProxyAddressParams
  * @property {string} recipient - The address that receives forwarded funds on the destination chain.
- * @property {string} custodialWithdrawer - The address allowed to withdraw stuck funds after a timelock.
+ * @property {string} recoveryWithdrawer - The address allowed to withdraw stuck funds after a timelock (the contract
+ *   and the API call it `custodialWithdrawer`).
  * @property {number} destinationChainId - The destination chain id.
  * @property {string} allowedRelayer - The relayer address allowed to trigger forwarding.
  * @property {string} factory - The `ForwardingAddressFactory` address.
@@ -43,11 +44,11 @@ export function bytesToHex(bytes: Uint8Array): string;
 /**
  * Computes the deterministic CREATE2 forwarding address, client-side.
  *
- * `initData = initialize.selector ++ abi.encode(recipient, allowedRelayer, custodialWithdrawer, destinationChainId)`
+ * `initData = initialize.selector ++ abi.encode(recipient, allowedRelayer, recoveryWithdrawer, destinationChainId)`
  * `bytecode = proxyCreationCode ++ abi.encode(singleton, initData)`
  * `address = keccak256(0xff ++ factory ++ salt ++ keccak256(bytecode))[12:]`
  *
- * Note the `initialize` argument order: the relayer comes second, before the custodial withdrawer.
+ * Note the `initialize` argument order: the relayer comes second, before the recovery withdrawer.
  *
  * @param {ComputeProxyAddressParams} params - The derivation inputs.
  * @returns {string} The lowercase, 0x-prefixed forwarding address.
@@ -65,9 +66,10 @@ export type ComputeProxyAddressParams = {
      */
     recipient: string;
     /**
-     * - The address allowed to withdraw stuck funds after a timelock.
+     * - The address allowed to withdraw stuck funds after a timelock (the contract
+     * and the API call it `custodialWithdrawer`).
      */
-    custodialWithdrawer: string;
+    recoveryWithdrawer: string;
     /**
      * - The destination chain id.
      */

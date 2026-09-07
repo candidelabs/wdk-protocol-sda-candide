@@ -4,7 +4,7 @@
 //   CANDIDE_FORWARDING_API_URL        the API URL from the dashboard (carries the team API key)
 //   CANDIDE_FORWARDING_POLICY_SECRET  the forwarding policy secret (needed for activation)
 //   TEST_RECIPIENT                    the recipient address used for the test forwarding address
-//   TEST_CUSTODIAL_WITHDRAWER         optional, defaults to TEST_RECIPIENT
+//   TEST_RECOVERY_WITHDRAWER         optional, defaults to TEST_RECIPIENT
 //
 // Run with: npm run test:integration   (loads .env automatically when present)
 import { beforeAll, describe, expect, jest, test } from '@jest/globals'
@@ -15,7 +15,7 @@ import CandideForwardingProtocol, { PINNED_DEPLOY_PARAMS } from '../../index.js'
 import CandideRpcClient from '../../src/rpc-client.js'
 
 const { CANDIDE_FORWARDING_API_URL: apiUrl, CANDIDE_FORWARDING_POLICY_SECRET: policySecret, TEST_RECIPIENT: recipient } = process.env
-const custodialWithdrawer = process.env.TEST_CUSTODIAL_WITHDRAWER || recipient
+const recoveryWithdrawer = process.env.TEST_RECOVERY_WITHDRAWER || recipient
 const enabled = Boolean(apiUrl && policySecret && recipient)
 
 // Fixed salt so repeated runs refresh the same address instead of creating a new one every time.
@@ -33,7 +33,7 @@ maybe('CandideForwardingProtocol (live)', () => {
   let protocol, rpc, route, token, sourceChainId, destinationChainId, created
 
   beforeAll(() => {
-    protocol = new CandideForwardingProtocol(undefined, { apiUrl, policySecret, custodialWithdrawer })
+    protocol = new CandideForwardingProtocol(undefined, { apiUrl, policySecret, recoveryWithdrawer })
     rpc = new CandideRpcClient({ url: apiUrl })
   })
 
@@ -81,7 +81,7 @@ maybe('CandideForwardingProtocol (live)', () => {
     const options = { sourceChains: [sourceChainId], destinationChain: destinationChainId, destinationAddress: recipient, salt: TEST_SALT }
 
     const derived = await protocol.deriveDepositAddress(options)
-    const { address } = await rpc.call('forwarding_getAddress', { recipient, custodialWithdrawer, destinationChainId, salt: TEST_SALT })
+    const { address } = await rpc.call('forwarding_getAddress', { recipient, custodialWithdrawer: recoveryWithdrawer, destinationChainId, salt: TEST_SALT })
 
     expect(derived).toBe(address.toLowerCase())
   })
