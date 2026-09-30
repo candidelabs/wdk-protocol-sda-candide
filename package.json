@@ -1,0 +1,80 @@
+{
+  "name": "@candidelabs/wdk-protocol-sda-candide",
+  "version": "1.0.0-beta.1",
+  "description": "WDK Smart Deposit Address (SDA) protocol module for Candide's Forwarding Address: deterministic deposit addresses that forward funds from any supported EVM chain to a recipient on a destination chain.",
+  "keywords": [
+    "wdk",
+    "protocol",
+    "sda",
+    "candide",
+    "forwarding-address",
+    "deposit-address",
+    "tether",
+    "usdt",
+    "usdt0",
+    "stablecoin",
+    "cross-chain",
+    "ethereum"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/candidelabs/wdk-protocol-sda-candide.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Candide Labs",
+  "type": "module",
+  "main": "index.js",
+  "types": "./types",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:types": "tsc",
+    "lint": "standard",
+    "lint:fix": "standard --fix",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "live:address": "node --env-file-if-exists=.env scripts/live-address.mjs",
+    "live:forwards": "node --env-file-if-exists=.env scripts/live-forwards.mjs",
+    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules node --env-file-if-exists=.env node_modules/jest/bin/jest.js --testPathIgnorePatterns=/node_modules/ --testPathPattern=tests/integration"
+  },
+  "dependencies": {
+    "@noble/hashes": "^1.8.0",
+    "@tetherto/wdk-wallet": "^1.0.0-beta.19",
+    "bare-node-runtime": "^1.5.0"
+  },
+  "devDependencies": {
+    "cross-env": "7.0.3",
+    "jest": "29.7.0",
+    "standard": "17.1.2",
+    "typescript": "5.8.3"
+  },
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "bare": "./bare.js",
+      "default": "./index.js"
+    },
+    "./package": {
+      "default": "./package.json"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/integration/"
+    ]
+  },
+  "standard": {
+    "ignore": [
+      "bare.js",
+      "tests/**/*.js",
+      "scripts/**/*.mjs",
+      "types/**"
+    ]
+  }
+}

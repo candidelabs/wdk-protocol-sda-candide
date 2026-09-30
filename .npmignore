@@ -1,0 +1,9 @@
+node_modules
+coverage
+tests
+scripts
+assets
+tsconfig.json
+.github
+.env
+.env.*
