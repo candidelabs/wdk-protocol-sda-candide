@@ -182,7 +182,8 @@ returns the refreshed descriptor.
 options: { status?: SdaTransferStatus, skip?: number, limit?: number }
 ```
 
-Forwards that went through the address, newest first. Throws `NoSuchElementError` for an unknown address.
+Forwards that went through the address, newest first. In-flight forwards have `status: 'processing'` (see
+[Transfer status](#transfer-status)). Throws `NoSuchElementError` for an unknown address.
 
 ### `getTransfersByRecipient(destinationChain, recipient, options?): Promise<CandideTransfer[]>`
 
@@ -224,7 +225,9 @@ plus the `allowedRelayer` reported by the API.
 | `failed` (other) | `failed` |
 | any other value | `pending` |
 
-The original value is kept in `providerStatus`.
+The original value is kept in `providerStatus`. To list in-flight forwards, filter on `processing`: Candide's
+`pending` is reported as `processing`, and SDA `pending` only appears for a status this SDK version does not
+recognize.
 
 ### Errors
 
