@@ -10,7 +10,7 @@ describe('toSdaRoute', () => {
 
     expect(route).toEqual({
       sourceChains: [1],
-      inputTokens: [{ token: USDT.address, chain: 1, symbol: 'USDT', decimals: 6, address: USDT.address, destinationAddress: USDT.destinationAddress, feeBps: 20 }],
+      inputTokens: [{ token: USDT.address, chain: 1, symbol: 'USDT', decimals: 6, address: USDT.address, destinationTokenAddress: USDT.destinationAddress, feeBps: 20 }],
       destinationChain: 42161,
       reusable: true
     })
@@ -22,7 +22,7 @@ describe('toSdaRoute', () => {
     const checksummed = toSdaToken({ ...USDT, address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', destinationAddress: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9' }, 1)
     expect(checksummed.token).toBe(USDT.address)
     expect(checksummed.address).toBe(USDT.address)
-    expect(checksummed.destinationAddress).toBe(USDT.destinationAddress)
+    expect(checksummed.destinationTokenAddress).toBe(USDT.destinationAddress)
   })
 })
 

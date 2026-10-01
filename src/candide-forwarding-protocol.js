@@ -14,7 +14,7 @@
 
 'use strict'
 
-import { NoSuchElementError, SdaProtocol, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet/protocols'
+import { InvalidTokenError, NoSuchElementError, SdaProtocol, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet/protocols'
 
 import { toChainId } from './chains.js'
 import { ZERO_SALT, computeProxyAddress, isAddress, isBytes32 } from './create2.js'
@@ -176,7 +176,9 @@ export default class CandideForwardingProtocol extends SdaProtocol {
 
   /**
    * Lists the routes available from a source chain. Candide discovers routes per source chain, so `sourceChain` is
-   * required. When `sourceToken` is given, per-route minimum deposit limits are included.
+   * required. When `sourceToken` is given, each route carries `limits.min`: the smallest amount at least one bridge
+   * currently accepts for that token. Deposits are routed through whichever bridge accepts the amount; minimums follow
+   * gas and token prices, so leave a margin above them and re-check with `quoteDeposit`.
    *
    * @param {SdaRoutesOptions} [options] - Route filters.
    * @returns {Promise<SdaRoute[]>} The supported routes, one per (source chain, destination chain) pair.
@@ -270,6 +272,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
    * @param {CandideDepositOptions} options - The quote options. `outputAsset` is ignored: each token is delivered as
    *   its own equivalent on the destination chain.
    * @returns {Promise<CandideDepositQuote>} The quote.
+   * @throws {InvalidTokenError} If `inputToken` is not a valid ERC-20 token address.
    * @throws {ValueError} If the options are not valid, or the amount is below the bridge minimum or above its maximum.
    * @throws {SdaError} If the route is not supported.
    * @throws {ProviderError} If the API call fails or no quote is currently available.
@@ -277,7 +280,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
   async quoteDeposit (options) {
     const sourceChainId = toChainId(options.sourceChain)
     const destinationChainId = toChainId(options.destinationChain)
-    if (!isAddress(options.inputToken)) throw new ValueError(`Invalid inputToken address: ${options.inputToken}`)
+    if (!isAddress(options.inputToken)) throw new InvalidTokenError(`Invalid inputToken, expected an ERC-20 token address: ${options.inputToken}`)
     const inputAmount = toAmount(options.inputAmount)
 
     const params = { sourceChainId, destinationChainId, token: options.inputToken, amount: inputAmount.toString() }
@@ -441,23 +444,20 @@ export default class CandideForwardingProtocol extends SdaProtocol {
    *
    * @param {SdaRecoveryOptions} options - The address to recover, by id or by address (equivalent for this protocol).
    * @returns {Promise<SdaRecoveryResult>} The recovery outcome.
-   * @throws {ValueError} If the options are not valid, or no API key was configured.
+   * @throws {ValueError} If the options are not valid, or no policy secret was configured.
+   * @throws {NoSuchElementError} If the address has never been activated.
+   * @throws {ProviderError} If the API call fails.
    */
   async recoverDepositAddress (options) {
     const id = 'id' in options ? options.id : options?.address
     if (id === undefined) throw new ValueError('Either \'id\' or \'address\' is required to recover a deposit address.')
 
-    try {
-      const renewed = await this.renewDepositAddress(id)
-      return {
-        status: 'reindexed',
-        address: renewed.address,
-        id: renewed.id,
-        message: 'Activation refreshed; any balance waiting at the address is forwarded on the next monitoring sweep.'
-      }
-    } catch (error) {
-      if (error instanceof NoSuchElementError) return { status: 'failed', address: normalizeId(id), message: error.message }
-      throw error
+    const renewed = await this.renewDepositAddress(id)
+    return {
+      status: 'reindexed',
+      address: renewed.address,
+      id: renewed.id,
+      message: 'Activation refreshed; any balance waiting at the address is forwarded on the next monitoring sweep.'
     }
   }
 

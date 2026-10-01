@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 import { ProviderErrorReason } from '@tetherto/wdk-wallet'
-import { NoSuchElementError, SdaError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet/protocols'
+import { InvalidTokenError, NoSuchElementError, SdaError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet/protocols'
 
 import CandideForwardingProtocol, { CandideForwardingError, CandideForwardingErrorReason, PINNED_DEPLOY_PARAMS, ZERO_SALT, computeProxyAddress } from '../index.js'
 
@@ -124,7 +124,7 @@ describe('CandideForwardingProtocol', () => {
       expect(routes[0]).toEqual({
         sourceChains: [1],
         inputTokens: [
-          expect.objectContaining({ token: USDT_ETH, chain: 1, symbol: 'USDT', decimals: 6, address: USDT_ETH, destinationAddress: USDT0_ARB, feeBps: 20 }),
+          expect.objectContaining({ token: USDT_ETH, chain: 1, symbol: 'USDT', decimals: 6, address: USDT_ETH, destinationTokenAddress: USDT0_ARB, feeBps: 20 }),
           expect.objectContaining({ token: USDC_ETH, symbol: 'USDC' })
         ],
         destinationChain: 42161,
@@ -266,12 +266,18 @@ describe('CandideForwardingProtocol', () => {
     test.each([
       ['non-positive amount', { inputAmount: 0n }],
       ['fractional amount', { inputAmount: 1.5 }],
-      ['bad token', { inputToken: 'USDT' }],
       ['unknown chain', { sourceChain: 'solana' }]
     ])('rejects a %s', async (_, bad) => {
       mockApi(baseHandlers({ forwarding_estimateOutput: ESTIMATE }))
 
       await expect(protocol.quoteDeposit({ sourceChain: 1, inputToken: USDT_ETH, destinationChain: 42161, inputAmount: 1n, ...bad })).rejects.toThrow(ValueError)
+      expect(global.fetch).not.toHaveBeenCalled()
+    })
+
+    test('rejects a malformed token address with InvalidTokenError', async () => {
+      mockApi(baseHandlers({ forwarding_estimateOutput: ESTIMATE }))
+
+      await expect(protocol.quoteDeposit({ sourceChain: 1, inputToken: 'USDT', destinationChain: 42161, inputAmount: 1n })).rejects.toBeInstanceOf(InvalidTokenError)
       expect(global.fetch).not.toHaveBeenCalled()
     })
 
@@ -628,12 +634,12 @@ describe('CandideForwardingProtocol', () => {
       await expect(protocol.recoverDepositAddress({ address })).resolves.toMatchObject({ status: 'reindexed' })
     })
 
-    test('reports failure for an unknown address and rethrows other errors', async () => {
+    test('throws NoSuchElementError for an unknown address and rethrows other errors', async () => {
       mockApi(baseHandlers({
         forwarding_getDeployParamsByAddress: { error: { code: -32005, message: 'address not found' } },
         forwarding_getActivation: { address, sourceChains: [] }
       }))
-      await expect(protocol.recoverDepositAddress({ address })).resolves.toMatchObject({ status: 'failed', address })
+      await expect(protocol.recoverDepositAddress({ address })).rejects.toBeInstanceOf(NoSuchElementError)
 
       mockApi(baseHandlers({
         forwarding_getDeployParamsByAddress: { error: { code: -32603, message: 'internal error' } },

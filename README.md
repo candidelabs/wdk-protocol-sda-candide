@@ -14,7 +14,8 @@ npm install @candidelabs/wdk-protocol-sda-candide
 ```
 
 Implements the `ISdaProtocol` interface from [`@tetherto/wdk-wallet`](https://github.com/tetherto/wdk-wallet)
-(`SdaProtocol`), supported range `^1.0.0-beta.19`. Node.js 20 or later. A [Bare](https://bare.pears.com) entry point is
+(`SdaProtocol`), declared as a peer dependency with range `^1.0.0-beta.19` so the host and this module share one
+copy of the WDK base and error classes. Node.js 20 or later. A [Bare](https://bare.pears.com) entry point is
 exported as well and smoke-tested on Bare 1.34 (`npm run test:bare`: load, derivation, routes, quote).
 
 Building with an AI coding agent? Install the [Candide skills](https://github.com/candidelabs/skills) so it knows the
@@ -130,9 +131,11 @@ options: { sourceChain: Blockchain, destinationChain?: Blockchain, sourceToken?:
 ```
 
 One route per (source chain, destination chain) pair, each with the accepted `inputTokens` (`token` is the
-source-chain contract address). With `sourceToken`, the route also carries `limits.min`, the smallest bridge minimum
-for that token. Throws `ValueError` without `sourceChain`. The `outputAsset` filter is not applied yet: filter
-`inputTokens` by `destinationAddress` yourself.
+source-chain contract address). With `sourceToken`, the route also carries `limits.min`: the smallest amount at least
+one bridge currently accepts for that token. The deposit is routed through whichever bridge accepts the amount.
+Minimums follow gas and token prices, so leave a margin above `limits.min` and re-check it with `quoteDeposit` before
+showing it to users. Throws `ValueError` without `sourceChain`. The `outputAsset` filter is not applied yet: filter
+`inputTokens` by `destinationTokenAddress` yourself.
 
 ### `quoteDeposit(options): Promise<CandideDepositQuote>`
 
@@ -180,7 +183,8 @@ returns the refreshed descriptor.
 options: { status?: SdaTransferStatus, skip?: number, limit?: number }
 ```
 
-Forwards that went through the address, newest first. Throws `NoSuchElementError` for an unknown address.
+Forwards that went through the address, newest first. In-flight forwards have `status: 'processing'` (see
+[Transfer status](#transfer-status)). Throws `NoSuchElementError` for an unknown address.
 
 ### `getTransfersByRecipient(destinationChain, recipient, options?): Promise<CandideTransfer[]>`
 
@@ -198,7 +202,7 @@ options: { id: string } | { address: string }
 
 Re-activates a lapsed address so any balance waiting at it is picked up by the next monitoring sweep. It is a
 reindex: no on-chain transaction is sent and no funds are moved by this call. Returns
-`{ status: 'reindexed', address, id, message }`, or `{ status: 'failed', address, message }` for an unknown address.
+`{ status: 'reindexed', address, id, message }`; throws `NoSuchElementError` for an address that was never activated.
 On-chain self-service recovery (withdrawing from the address) is done through the
 [recovery frontend](https://forwarding-address.candidelabs.com/).
 
@@ -222,7 +226,9 @@ plus the `allowedRelayer` reported by the API.
 | `failed` (other) | `failed` |
 | any other value | `pending` |
 
-The original value is kept in `providerStatus`.
+The original value is kept in `providerStatus`. To list in-flight forwards, filter on `processing`: Candide's
+`pending` is reported as `processing`, and SDA `pending` only appears for a status this SDK version does not
+recognize.
 
 ### Errors
 
@@ -230,6 +236,7 @@ API errors are mapped onto the WDK error classes; the JSON-RPC `code` and `messa
 
 | Situation | Thrown | What to do |
 |---|---|---|
+| `quoteDeposit` input token is not a valid ERC-20 address | `InvalidTokenError` | Use a `token` from `getSupportedRoutes` |
 | Invalid arguments; amount below the bridge minimum or above its maximum | `ValueError` | Fix the input; use `limits.min` from `getSupportedRoutes` |
 | Route not supported | `SdaError`, `reason: 'ROUTE_NOT_SUPPORTED'` | Pick a route from `getSupportedRoutes` |
 | Unknown address or transfer | `NoSuchElementError` | The address was never activated, or the id is wrong |
@@ -253,7 +260,7 @@ CandideForwardingProtocolConfig    // the configuration table above
 CandideCreateDepositAddressOptions // SdaCreateDepositAddressOptions & { recoveryWithdrawer?, salt? }
 CandideDepositOptions              // SdaDepositOptions & { depositAddress? }
 CandideDepositAddress              // SdaDepositAddress & { recoveryWithdrawer, salt, supportedInputTokens: CandideSdaToken[] }
-CandideSdaToken                    // SdaToken & { destinationAddress, feeBps }
+CandideSdaToken                    // SdaToken & { destinationTokenAddress, feeBps }
 CandideDepositQuote                // SdaDepositQuote & { bridge, outputAssetSymbol, sponsored }
 CandideTransfer                    // SdaTransfer & { providerStatus, route?, recipient, sourceChainId, sourceTxHash,
                                    //   sourceAddresses?, destinationChainId?, destinationTxHash?, proxyAddress?,
