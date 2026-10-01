@@ -212,7 +212,8 @@ export function toSdaQuote (input, estimate) {
 
 /**
  * Maps a Candide forward status into an SDA transfer status. Candide only records a forward once a deposit has been
- * detected, so its `pending` corresponds to the SDA `processing` state.
+ * detected, so its `pending` and `unknown` correspond to the SDA `processing` state. Unrecognized statuses fall back to
+ * `pending`, the neutral non-terminal state.
  *
  * @param {CandideForward} forward - The forward.
  * @returns {SdaTransferStatus} The SDA status.
@@ -225,8 +226,11 @@ export function toSdaTransferStatus (forward) {
       if (forward.failureReason === 'refunded') return 'refunded'
       if (forward.failureReason === 'expired') return 'expired'
       return 'failed'
-    default:
+    case 'pending': // bridge message observed, delivery in flight
+    case 'unknown': // deposit detected, the status check itself failed
       return 'processing'
+    default: // a status this SDK version does not know: the neutral non-terminal state
+      return 'pending'
   }
 }
 

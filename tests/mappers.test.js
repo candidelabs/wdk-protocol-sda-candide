@@ -90,7 +90,9 @@ describe('toSdaTransferStatus', () => {
     [{ status: 'failed', failureReason: 'refunded' }, 'refunded'],
     [{ status: 'failed', failureReason: 'expired' }, 'expired'],
     [{ status: 'failed', failureReason: 'reverted' }, 'failed'],
-    [{ status: 'failed' }, 'failed']
+    [{ status: 'failed' }, 'failed'],
+    [{ status: 'something_new' }, 'pending'],
+    [{}, 'pending']
   ])('maps %o to %s', (forward, expected) => {
     expect(toSdaTransferStatus(forward)).toBe(expected)
   })

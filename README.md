@@ -13,7 +13,9 @@ timelock.
 npm install @candidelabs/wdk-protocol-sda-candide
 ```
 
-Node.js 20 or later. A [Bare](https://bare.pears.com) entry point is exported as well.
+Implements the `ISdaProtocol` interface from [`@tetherto/wdk-wallet`](https://github.com/tetherto/wdk-wallet)
+(`SdaProtocol`), supported range `^1.0.0-beta.19`. Node.js 20 or later. A [Bare](https://bare.pears.com) entry point is
+exported as well and smoke-tested on Bare 1.34 (`npm run test:bare`: load, derivation, routes, quote).
 
 Building with an AI coding agent? Install the [Candide skills](https://github.com/candidelabs/skills) so it knows the
 forwarding flow and this SDK:
@@ -129,7 +131,8 @@ options: { sourceChain: Blockchain, destinationChain?: Blockchain, sourceToken?:
 
 One route per (source chain, destination chain) pair, each with the accepted `inputTokens` (`token` is the
 source-chain contract address). With `sourceToken`, the route also carries `limits.min`, the smallest bridge minimum
-for that token. Throws `ValueError` without `sourceChain`.
+for that token. Throws `ValueError` without `sourceChain`. The `outputAsset` filter is not applied yet: filter
+`inputTokens` by `destinationAddress` yourself.
 
 ### `quoteDeposit(options): Promise<CandideDepositQuote>`
 
@@ -217,6 +220,7 @@ plus the `allowedRelayer` reported by the API.
 | `failed` with `failureReason: 'refunded'` | `refunded` |
 | `failed` with `failureReason: 'expired'` | `expired` |
 | `failed` (other) | `failed` |
+| any other value | `pending` |
 
 The original value is kept in `providerStatus`.
 
@@ -235,6 +239,10 @@ API errors are mapped onto the WDK error classes; the JSON-RPC `code` and `messa
 | Server address differs from the client-side derivation | `CandideForwardingError`, `reason: 'ADDRESS_MISMATCH'` | Do not fund either address; investigate |
 | Server reports a different factory, beacon or bytecode | `CandideForwardingError`, `reason: 'DEPLOYMENT_CHANGED'` | Upgrade the SDK, or pass verified `deployParams` |
 | Method not supported by Candide | `UnsupportedOperationError` | Only `disableDepositAddress` |
+
+For integration help, reach the Candide team through [candide.dev/contact](https://www.candide.dev/contact). Report
+bugs in this SDK as [GitHub issues](https://github.com/candidelabs/wdk-protocol-sda-candide/issues), and security
+vulnerabilities privately to [team@candidelabs.com](mailto:team@candidelabs.com) (see [SECURITY.md](SECURITY.md)).
 
 ### Types
 
@@ -281,6 +289,7 @@ npm install
 npm test                 # unit tests, no network
 npm run lint
 npm run build:types      # regenerate types/ from JSDoc
+npm run test:bare        # Bare runtime smoke test; also hits the live API when CANDIDE_FORWARDING_API_URL is set
 ```
 
 Live tests read `.env` (see `.env.example`): `CANDIDE_FORWARDING_API_URL`, `CANDIDE_FORWARDING_POLICY_SECRET`,

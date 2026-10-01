@@ -136,7 +136,8 @@ export function toSdaQuote(input: {
 }, estimate: CandideEstimate): CandideDepositQuote;
 /**
  * Maps a Candide forward status into an SDA transfer status. Candide only records a forward once a deposit has been
- * detected, so its `pending` corresponds to the SDA `processing` state.
+ * detected, so its `pending` and `unknown` correspond to the SDA `processing` state. Unrecognized statuses fall back to
+ * `pending`, the neutral non-terminal state.
  *
  * @param {CandideForward} forward - The forward.
  * @returns {SdaTransferStatus} The SDA status.
