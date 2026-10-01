@@ -130,8 +130,10 @@ options: { sourceChain: Blockchain, destinationChain?: Blockchain, sourceToken?:
 ```
 
 One route per (source chain, destination chain) pair, each with the accepted `inputTokens` (`token` is the
-source-chain contract address). With `sourceToken`, the route also carries `limits.min`, the smallest bridge minimum
-for that token. Throws `ValueError` without `sourceChain`. The `outputAsset` filter is not applied yet: filter
+source-chain contract address). With `sourceToken`, the route also carries `limits.min`: the smallest amount at least
+one bridge currently accepts for that token. The deposit is routed through whichever bridge accepts the amount.
+Minimums follow gas and token prices, so leave a margin above `limits.min` and re-check it with `quoteDeposit` before
+showing it to users. Throws `ValueError` without `sourceChain`. The `outputAsset` filter is not applied yet: filter
 `inputTokens` by `destinationTokenAddress` yourself.
 
 ### `quoteDeposit(options): Promise<CandideDepositQuote>`

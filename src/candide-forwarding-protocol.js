@@ -176,7 +176,9 @@ export default class CandideForwardingProtocol extends SdaProtocol {
 
   /**
    * Lists the routes available from a source chain. Candide discovers routes per source chain, so `sourceChain` is
-   * required. When `sourceToken` is given, per-route minimum deposit limits are included.
+   * required. When `sourceToken` is given, each route carries `limits.min`: the smallest amount at least one bridge
+   * currently accepts for that token. Deposits are routed through whichever bridge accepts the amount; minimums follow
+   * gas and token prices, so leave a margin above them and re-check with `quoteDeposit`.
    *
    * @param {SdaRoutesOptions} [options] - Route filters.
    * @returns {Promise<SdaRoute[]>} The supported routes, one per (source chain, destination chain) pair.
