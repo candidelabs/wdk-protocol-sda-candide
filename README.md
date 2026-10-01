@@ -200,7 +200,7 @@ options: { id: string } | { address: string }
 
 Re-activates a lapsed address so any balance waiting at it is picked up by the next monitoring sweep. It is a
 reindex: no on-chain transaction is sent and no funds are moved by this call. Returns
-`{ status: 'reindexed', address, id, message }`, or `{ status: 'failed', address, message }` for an unknown address.
+`{ status: 'reindexed', address, id, message }`; throws `NoSuchElementError` for an address that was never activated.
 On-chain self-service recovery (withdrawing from the address) is done through the
 [recovery frontend](https://forwarding-address.candidelabs.com/).
 

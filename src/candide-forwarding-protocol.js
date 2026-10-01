@@ -444,23 +444,20 @@ export default class CandideForwardingProtocol extends SdaProtocol {
    *
    * @param {SdaRecoveryOptions} options - The address to recover, by id or by address (equivalent for this protocol).
    * @returns {Promise<SdaRecoveryResult>} The recovery outcome.
-   * @throws {ValueError} If the options are not valid, or no API key was configured.
+   * @throws {ValueError} If the options are not valid, or no policy secret was configured.
+   * @throws {NoSuchElementError} If the address has never been activated.
+   * @throws {ProviderError} If the API call fails.
    */
   async recoverDepositAddress (options) {
     const id = 'id' in options ? options.id : options?.address
     if (id === undefined) throw new ValueError('Either \'id\' or \'address\' is required to recover a deposit address.')
 
-    try {
-      const renewed = await this.renewDepositAddress(id)
-      return {
-        status: 'reindexed',
-        address: renewed.address,
-        id: renewed.id,
-        message: 'Activation refreshed; any balance waiting at the address is forwarded on the next monitoring sweep.'
-      }
-    } catch (error) {
-      if (error instanceof NoSuchElementError) return { status: 'failed', address: normalizeId(id), message: error.message }
-      throw error
+    const renewed = await this.renewDepositAddress(id)
+    return {
+      status: 'reindexed',
+      address: renewed.address,
+      id: renewed.id,
+      message: 'Activation refreshed; any balance waiting at the address is forwarded on the next monitoring sweep.'
     }
   }
 

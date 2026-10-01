@@ -634,12 +634,12 @@ describe('CandideForwardingProtocol', () => {
       await expect(protocol.recoverDepositAddress({ address })).resolves.toMatchObject({ status: 'reindexed' })
     })
 
-    test('reports failure for an unknown address and rethrows other errors', async () => {
+    test('throws NoSuchElementError for an unknown address and rethrows other errors', async () => {
       mockApi(baseHandlers({
         forwarding_getDeployParamsByAddress: { error: { code: -32005, message: 'address not found' } },
         forwarding_getActivation: { address, sourceChains: [] }
       }))
-      await expect(protocol.recoverDepositAddress({ address })).resolves.toMatchObject({ status: 'failed', address })
+      await expect(protocol.recoverDepositAddress({ address })).rejects.toBeInstanceOf(NoSuchElementError)
 
       mockApi(baseHandlers({
         forwarding_getDeployParamsByAddress: { error: { code: -32603, message: 'internal error' } },
