@@ -230,6 +230,7 @@ API errors are mapped onto the WDK error classes; the JSON-RPC `code` and `messa
 
 | Situation | Thrown | What to do |
 |---|---|---|
+| `quoteDeposit` input token is not a valid ERC-20 address | `InvalidTokenError` | Use a `token` from `getSupportedRoutes` |
 | Invalid arguments; amount below the bridge minimum or above its maximum | `ValueError` | Fix the input; use `limits.min` from `getSupportedRoutes` |
 | Route not supported | `SdaError`, `reason: 'ROUTE_NOT_SUPPORTED'` | Pick a route from `getSupportedRoutes` |
 | Unknown address or transfer | `NoSuchElementError` | The address was never activated, or the id is wrong |

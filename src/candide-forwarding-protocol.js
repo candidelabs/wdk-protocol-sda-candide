@@ -14,7 +14,7 @@
 
 'use strict'
 
-import { NoSuchElementError, SdaProtocol, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet/protocols'
+import { InvalidTokenError, NoSuchElementError, SdaProtocol, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet/protocols'
 
 import { toChainId } from './chains.js'
 import { ZERO_SALT, computeProxyAddress, isAddress, isBytes32 } from './create2.js'
@@ -270,6 +270,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
    * @param {CandideDepositOptions} options - The quote options. `outputAsset` is ignored: each token is delivered as
    *   its own equivalent on the destination chain.
    * @returns {Promise<CandideDepositQuote>} The quote.
+   * @throws {InvalidTokenError} If `inputToken` is not a valid ERC-20 token address.
    * @throws {ValueError} If the options are not valid, or the amount is below the bridge minimum or above its maximum.
    * @throws {SdaError} If the route is not supported.
    * @throws {ProviderError} If the API call fails or no quote is currently available.
@@ -277,7 +278,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
   async quoteDeposit (options) {
     const sourceChainId = toChainId(options.sourceChain)
     const destinationChainId = toChainId(options.destinationChain)
-    if (!isAddress(options.inputToken)) throw new ValueError(`Invalid inputToken address: ${options.inputToken}`)
+    if (!isAddress(options.inputToken)) throw new InvalidTokenError(`Invalid inputToken, expected an ERC-20 token address: ${options.inputToken}`)
     const inputAmount = toAmount(options.inputAmount)
 
     const params = { sourceChainId, destinationChainId, token: options.inputToken, amount: inputAmount.toString() }

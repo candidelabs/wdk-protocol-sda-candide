@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, jest, test } from '@jest/globals'
 
 import { ProviderErrorReason } from '@tetherto/wdk-wallet'
-import { NoSuchElementError, SdaError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet/protocols'
+import { InvalidTokenError, NoSuchElementError, SdaError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet/protocols'
 
 import CandideForwardingProtocol, { CandideForwardingError, CandideForwardingErrorReason, PINNED_DEPLOY_PARAMS, ZERO_SALT, computeProxyAddress } from '../index.js'
 
@@ -266,12 +266,18 @@ describe('CandideForwardingProtocol', () => {
     test.each([
       ['non-positive amount', { inputAmount: 0n }],
       ['fractional amount', { inputAmount: 1.5 }],
-      ['bad token', { inputToken: 'USDT' }],
       ['unknown chain', { sourceChain: 'solana' }]
     ])('rejects a %s', async (_, bad) => {
       mockApi(baseHandlers({ forwarding_estimateOutput: ESTIMATE }))
 
       await expect(protocol.quoteDeposit({ sourceChain: 1, inputToken: USDT_ETH, destinationChain: 42161, inputAmount: 1n, ...bad })).rejects.toThrow(ValueError)
+      expect(global.fetch).not.toHaveBeenCalled()
+    })
+
+    test('rejects a malformed token address with InvalidTokenError', async () => {
+      mockApi(baseHandlers({ forwarding_estimateOutput: ESTIMATE }))
+
+      await expect(protocol.quoteDeposit({ sourceChain: 1, inputToken: 'USDT', destinationChain: 42161, inputAmount: 1n })).rejects.toBeInstanceOf(InvalidTokenError)
       expect(global.fetch).not.toHaveBeenCalled()
     })
 

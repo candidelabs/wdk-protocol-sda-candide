@@ -77,6 +77,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
      * @param {CandideDepositOptions} options - The quote options. `outputAsset` is ignored: each token is delivered as
      *   its own equivalent on the destination chain.
      * @returns {Promise<CandideDepositQuote>} The quote.
+     * @throws {InvalidTokenError} If `inputToken` is not a valid ERC-20 token address.
      * @throws {ValueError} If the options are not valid, or the amount is below the bridge minimum or above its maximum.
      * @throws {SdaError} If the route is not supported.
      * @throws {ProviderError} If the API call fails or no quote is currently available.
