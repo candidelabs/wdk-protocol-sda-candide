@@ -45,7 +45,10 @@
 /**
  * An SDA token enriched with the Candide route fields.
  *
- * @typedef {SdaToken & { destinationAddress: string, feeBps: number }} CandideSdaToken
+ * The destination-chain token contract is named `destinationTokenAddress` so it cannot be confused with WDK's
+ * `SdaDepositAddress.destinationAddress`, which is the recipient.
+ *
+ * @typedef {SdaToken & { destinationTokenAddress: string, feeBps: number }} CandideSdaToken
  */
 
 /**
@@ -107,7 +110,7 @@ export function toSdaToken (token, chainId) {
     symbol: token.symbol,
     decimals: token.decimals,
     address,
-    destinationAddress: typeof token.destinationAddress === 'string' ? token.destinationAddress.toLowerCase() : token.destinationAddress,
+    destinationTokenAddress: typeof token.destinationAddress === 'string' ? token.destinationAddress.toLowerCase() : token.destinationAddress,
     feeBps: token.feeBps
   }
 }

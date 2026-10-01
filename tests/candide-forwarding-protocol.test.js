@@ -124,7 +124,7 @@ describe('CandideForwardingProtocol', () => {
       expect(routes[0]).toEqual({
         sourceChains: [1],
         inputTokens: [
-          expect.objectContaining({ token: USDT_ETH, chain: 1, symbol: 'USDT', decimals: 6, address: USDT_ETH, destinationAddress: USDT0_ARB, feeBps: 20 }),
+          expect.objectContaining({ token: USDT_ETH, chain: 1, symbol: 'USDT', decimals: 6, address: USDT_ETH, destinationTokenAddress: USDT0_ARB, feeBps: 20 }),
           expect.objectContaining({ token: USDC_ETH, symbol: 'USDC' })
         ],
         destinationChain: 42161,

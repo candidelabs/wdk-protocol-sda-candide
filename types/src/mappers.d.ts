@@ -26,7 +26,10 @@
 /**
  * An SDA token enriched with the Candide route fields.
  *
- * @typedef {SdaToken & { destinationAddress: string, feeBps: number }} CandideSdaToken
+ * The destination-chain token contract is named `destinationTokenAddress` so it cannot be confused with WDK's
+ * `SdaDepositAddress.destinationAddress`, which is the recipient.
+ *
+ * @typedef {SdaToken & { destinationTokenAddress: string, feeBps: number }} CandideSdaToken
  */
 /**
  * A forward (one processed deposit) as returned by the `forwarding_getForwards*` methods. Fields without a value are
@@ -207,9 +210,12 @@ export type CandideRoute = {
 };
 /**
  * An SDA token enriched with the Candide route fields.
+ *
+ * The destination-chain token contract is named `destinationTokenAddress` so it cannot be confused with WDK's
+ * `SdaDepositAddress.destinationAddress`, which is the recipient.
  */
 export type CandideSdaToken = SdaToken & {
-    destinationAddress: string;
+    destinationTokenAddress: string;
     feeBps: number;
 };
 /**

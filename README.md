@@ -132,7 +132,7 @@ options: { sourceChain: Blockchain, destinationChain?: Blockchain, sourceToken?:
 One route per (source chain, destination chain) pair, each with the accepted `inputTokens` (`token` is the
 source-chain contract address). With `sourceToken`, the route also carries `limits.min`, the smallest bridge minimum
 for that token. Throws `ValueError` without `sourceChain`. The `outputAsset` filter is not applied yet: filter
-`inputTokens` by `destinationAddress` yourself.
+`inputTokens` by `destinationTokenAddress` yourself.
 
 ### `quoteDeposit(options): Promise<CandideDepositQuote>`
 
@@ -254,7 +254,7 @@ CandideForwardingProtocolConfig    // the configuration table above
 CandideCreateDepositAddressOptions // SdaCreateDepositAddressOptions & { recoveryWithdrawer?, salt? }
 CandideDepositOptions              // SdaDepositOptions & { depositAddress? }
 CandideDepositAddress              // SdaDepositAddress & { recoveryWithdrawer, salt, supportedInputTokens: CandideSdaToken[] }
-CandideSdaToken                    // SdaToken & { destinationAddress, feeBps }
+CandideSdaToken                    // SdaToken & { destinationTokenAddress, feeBps }
 CandideDepositQuote                // SdaDepositQuote & { bridge, outputAssetSymbol, sponsored }
 CandideTransfer                    // SdaTransfer & { providerStatus, route?, recipient, sourceChainId, sourceTxHash,
                                    //   sourceAddresses?, destinationChainId?, destinationTxHash?, proxyAddress?,
