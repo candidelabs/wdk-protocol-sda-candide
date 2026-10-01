@@ -219,6 +219,7 @@ plus the `allowedRelayer` reported by the API.
 | `failed` with `failureReason: 'refunded'` | `refunded` |
 | `failed` with `failureReason: 'expired'` | `expired` |
 | `failed` (other) | `failed` |
+| any other value | `pending` |
 
 The original value is kept in `providerStatus`.
 
