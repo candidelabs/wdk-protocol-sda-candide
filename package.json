@@ -25,6 +25,14 @@
   "type": "module",
   "main": "index.js",
   "types": "./types",
+  "files": [
+    "index.js",
+    "bare.js",
+    "src",
+    "types",
+    "CHANGELOG.md",
+    "SECURITY.md"
+  ],
   "engines": {
     "node": ">=20"
   },

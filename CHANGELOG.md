@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [1.0.0-beta.1] - Unreleased
+## [1.0.0-beta.1] - 2026-10-05
 
 Initial release: Candide's Forwarding Address as a WDK Smart Deposit Address protocol, implementing `ISdaProtocol`
 from `@tetherto/wdk-wallet` (peer dependency, `^1.0.0-beta.19`).
@@ -24,3 +24,6 @@ from `@tetherto/wdk-wallet` (peer dependency, `^1.0.0-beta.19`).
 - API errors mapped onto the WDK error classes; `CandideForwardingError` for address mismatches and deployment
   changes.
 - Node.js and Bare entry points.
+
+[Unreleased]: https://github.com/candidelabs/wdk-protocol-sda-candide/compare/v1.0.0-beta.1...HEAD
+[1.0.0-beta.1]: https://github.com/candidelabs/wdk-protocol-sda-candide/releases/tag/v1.0.0-beta.1
