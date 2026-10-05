@@ -109,7 +109,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
    * Creates a new Candide forwarding protocol without binding it to a wallet account.
    *
    * @overload
-   * @param {undefined} [account] - The wallet account to use to interact with the protocol.
+   * @param {undefined} account - The wallet account to use to interact with the protocol.
    * @param {CandideForwardingProtocolConfig} config - The protocol configuration.
    */
 
@@ -180,7 +180,7 @@ export default class CandideForwardingProtocol extends SdaProtocol {
    * currently accepts for that token. Deposits are routed through whichever bridge accepts the amount; minimums follow
    * gas and token prices, so leave a margin above them and re-check with `quoteDeposit`.
    *
-   * @param {SdaRoutesOptions} [options] - Route filters.
+   * @param {SdaRoutesOptions & { sourceChain: Blockchain }} options - Route filters; `sourceChain` is required.
    * @returns {Promise<SdaRoute[]>} The supported routes, one per (source chain, destination chain) pair.
    * @throws {ValueError} If `sourceChain` is not set.
    * @throws {ProviderError} If the API call fails.

@@ -11,10 +11,10 @@ export default class CandideForwardingProtocol extends SdaProtocol {
      * Creates a new Candide forwarding protocol without binding it to a wallet account.
      *
      * @overload
-     * @param {undefined} [account] - The wallet account to use to interact with the protocol.
+     * @param {undefined} account - The wallet account to use to interact with the protocol.
      * @param {CandideForwardingProtocolConfig} config - The protocol configuration.
      */
-    constructor(account?: undefined, config: CandideForwardingProtocolConfig);
+    constructor(account: undefined, config: CandideForwardingProtocolConfig);
     /**
      * Creates a new read-only Candide forwarding protocol.
      *
@@ -56,6 +56,20 @@ export default class CandideForwardingProtocol extends SdaProtocol {
      * @throws {CandideForwardingError} If the API reports a deployment different from the one pinned in this SDK.
      */
     getDeployParams(): Promise<CandideDeployParams>;
+    /**
+     * Lists the routes available from a source chain. Candide discovers routes per source chain, so `sourceChain` is
+     * required. When `sourceToken` is given, each route carries `limits.min`: the smallest amount at least one bridge
+     * currently accepts for that token. Deposits are routed through whichever bridge accepts the amount; minimums follow
+     * gas and token prices, so leave a margin above them and re-check with `quoteDeposit`.
+     *
+     * @param {SdaRoutesOptions & { sourceChain: Blockchain }} options - Route filters; `sourceChain` is required.
+     * @returns {Promise<SdaRoute[]>} The supported routes, one per (source chain, destination chain) pair.
+     * @throws {ValueError} If `sourceChain` is not set.
+     * @throws {ProviderError} If the API call fails.
+     */
+    getSupportedRoutes(options?: SdaRoutesOptions & {
+        sourceChain: Blockchain;
+    }): Promise<SdaRoute[]>;
     /**
      * Creates and activates a forwarding address. One address covers every requested source chain; the destination
      * chain is always monitored too, so same-chain deposits are forwarded as well.
